@@ -1,0 +1,27 @@
+PING! — V0.30 ANALYSE BOT — JOURNAL ENRICHI
+
+Cette version ne change PAS la stratégie du BOT.
+Elle instrumente ses décisions afin de pouvoir l'améliorer sur des données réelles.
+
+Avant chaque décision du BOT, le CSV enregistre désormais :
+- les 6 piles visibles : couleur, valeur visible, nombre de tuiles restantes, couleur bloquée ;
+- toutes les options de service/réponse réellement légales ;
+- pour chaque option : pile, couleur, valeur imprimée, valeur finale, coût énergie ;
+- le score que l'algorithme actuel attribuait à cette option ;
+- le bonus vers son propre objectif et le bonus potentiel vers l'objectif visible de J1 ;
+- le classement complet des options et l'option finalement choisie ;
+- toutes les répartitions déplacement/énergie légalement possibles lors d'une réception ;
+- l'option de déplacement choisie par le BOT ;
+- les ressources, positions, objectifs et progression des deux joueurs AVANT la décision.
+
+Le journal continue aussi d'enregistrer les actions effectivement jouées et les fins de point.
+
+BUT :
+Après une partie, envoyer le CSV à ChatGPT. Il devient alors possible de comparer
+le choix du BOT aux autres options qu'il avait réellement au même instant, au lieu
+d'inférer ces options après coup.
+
+IMPORTANT :
+Le comportement du BOT est volontairement inchangé dans cette version. On collecte
+d'abord des parties comparables, puis on modifiera sa gestion déplacement/énergie
+et sa stratégie d'objectif/blocage.

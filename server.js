@@ -8,9 +8,9 @@ const httpServer=http.createServer(app);
 const io=new Server(httpServer);
 app.use(express.static(__dirname));
 
-/* V0.32 INTERNET — endpoint simple pour les hébergeurs/health checks. */
+/* V0.34 INTERNET — endpoint pour Render / health checks. */
 app.get('/health',(req,res)=>{
-  res.status(200).json({ok:true,game:'PING!',rooms:rooms ? rooms.size : 0});
+  res.status(200).json({ok:true,game:'PING!',version:'0.34',rooms:rooms ? rooms.size : 0});
 });
 
 const rooms=new Map();
@@ -284,6 +284,33 @@ function maybeEndAfterMove(room,r,movingSide){
 
 /* V0.25 BOT : siège J2/top, objectifs des deux joueurs visibles. */
 function botLog(room,text){io.to(room).emit('freshBotLog',{text});}
+function botVisiblePiles(st){
+ return (st.pingPiles||[]).map((p,i)=>({
+  pileIndex:i,
+  color:p&&p.color||'',
+  visibleValue:p&&p.cards&&p.cards.length?Number(p.cards[0]):null,
+  remaining:p&&p.cards?p.cards.length:0,
+  blocked:!!(st.blockedColor&&p&&p.color===st.blockedColor)
+ }));
+}
+function botAnalysis(room,kind,st,data,difficulty='easy'){
+ io.to(room).emit('freshBotAnalysis',{
+  kind,difficulty,
+  at:new Date().toISOString(),
+  state:{
+   phase:st.phase,pointServerSide:st.pointServerSide,
+   botEnergy:st.opponentEnergy,botMovement:st.opponentMovement,
+   playerEnergy:st.localEnergy,playerMovement:st.localMovement,
+   botPaddle:st.opponentPaddleNode,playerPaddle:st.localPaddleNode,
+   botObjective:st.playerObjectives&&st.playerObjectives.top,
+   playerObjective:st.playerObjectives&&st.playerObjectives.bottom,
+   blockedColor:st.blockedColor,lastPlayedColor:st.lastPlayedColor,lastPlayedValue:st.lastPlayedValue,
+   botProgress:botProgress(st,'top'),playerProgress:botProgress(st,'bottom'),
+   visiblePiles:botVisiblePiles(st)
+  },
+  data
+ });
+}
 function botBonus(st,side,color,v){
  const id=st.playerObjectives&&st.playerObjectives[side],r=OBJECTIVE_RULES[id]; if(!r)return 0;
  if(r.type==='positions'){const n=r.slots[v];return n&&(n==='any'||n===color)?24:0;}
@@ -296,41 +323,265 @@ function botProgress(st,side){
  let n=0,a=s[+r.stackPos]||[],run=0;for(let i=a.length-1;i>=0&&a[i]===r.stackColor;i--)run++;n+=Math.min(run,r.stackCount);
  const b=s[+r.otherPos]||[];if(b.length&&(r.otherColor==='any'||b[b.length-1]===r.otherColor))n++;return n;
 }
-function botShot(st,isService){
+function botEasyShot(st,isService){
  const a=[];for(let i=0;i<st.pingPiles.length;i++){const p=st.pingPiles[i];if(!p||!p.cards.length)continue;
   if(!isService&&st.blockedColor===p.color)continue;const printed=+p.cards[0];
   for(let v=1;v<=6;v++){const cost=Math.abs(printed-v);if(cost>st.opponentEnergy)continue;
    if(!isService&&!responseRuleAllows(st.lastPlayedColor,+st.lastPlayedValue,v))continue;
    const own=botBonus(st,'top',p.color,v),opp=botBonus(st,'bottom',p.color,v);
-   a.push({pileIndex:i,color:p.color,printedValue:printed,finalValue:v,cost,score:own-.30*opp-3*cost,own,opp});
+   a.push({pileIndex:i,color:p.color,printedValue:printed,finalValue:v,cost,score:own-.30*opp-3*cost,own,opp,mode:'easy'});
   }}
- a.sort((x,y)=>y.score-x.score||x.cost-y.cost||x.pileIndex-y.pileIndex||x.finalValue-y.finalValue);return {choice:a[0]||null,count:a.length};
+ a.sort((x,y)=>y.score-x.score||x.cost-y.cost||x.pileIndex-y.pileIndex||x.finalValue-y.finalValue);
+ return {choice:a[0]||null,count:a.length,options:a.map((o,rank)=>({...o,rank:rank+1}))};
 }
-function botMoveChoice(st,target){
+
+
+function botObjectiveNeed(st,side){
+ const id=st.playerObjectives&&st.playerObjectives[side],r=OBJECTIVE_RULES[id];
+ if(!r)return 99;
+ if(r.type==='positions')return Object.keys(r.slots||{}).length;
+ return Number(r.stackCount||0)+1;
+}
+
+function botBottomImmediateObjectiveWins(st,shot){
+ /* Après le coup du BOT, combien de réponses légales de J1
+    complèteraient immédiatement son objectif ? */
+ const testBase=JSON.parse(JSON.stringify(st));
+ testBase.lastPlayedColor=shot.color;
+ testBase.lastPlayedValue=shot.finalValue;
+ testBase.blockedColor=shot.color;
+ let wins=0, legal=0;
+
+ for(let i=0;i<testBase.pingPiles.length;i++){
+  const p=testBase.pingPiles[i];
+  if(!p||!p.cards||!p.cards.length)continue;
+  if(testBase.blockedColor===p.color)continue;
+  const printed=Number(p.cards[0]);
+
+  for(let v=1;v<=6;v++){
+   const cost=Math.abs(printed-v);
+   if(cost>testBase.localEnergy)continue;
+   if(!responseRuleAllows(testBase.lastPlayedColor,Number(testBase.lastPlayedValue),v))continue;
+   legal++;
+
+   const s=JSON.parse(JSON.stringify(testBase));
+   s.pingPiles[i].cards.shift();
+   s.localEnergy-=cost;
+   s.lastPlayedColor=p.color;
+   s.lastPlayedValue=v;
+   s.blockedColor=p.color;
+   s.boardPlays.push({
+    type:'bottomResponse',side:'bottom',pileIndex:i,color:p.color,
+    printedValue:printed,finalValue:v,cost
+   });
+   if(objectiveComplete(s,'bottom'))wins++;
+  }
+ }
+ return {wins,legal};
+}
+
+function botIncomingRiskAfterShot(st,shot){
+ /* Estimation d'un échange à l'avance :
+    parmi les réponses légales de J1, quelle distance le BOT pourrait-il devoir
+    couvrir ensuite, avec ses ressources restantes après son propre coup ? */
+ const energyAfter=st.opponentEnergy-shot.cost;
+ const movementAfter=st.opponentMovement;
+ let worstDistance=0, unaffordable=0, replies=0;
+
+ for(let i=0;i<st.pingPiles.length;i++){
+  const p=st.pingPiles[i];
+  if(!p||!p.cards||!p.cards.length)continue;
+  if(p.color===shot.color)continue;
+  const printed=Number(p.cards[0]);
+
+  for(let v=1;v<=6;v++){
+   const cost=Math.abs(printed-v);
+   if(cost>st.localEnergy)continue;
+   if(!responseRuleAllows(shot.color,Number(shot.finalValue),v))continue;
+   replies++;
+   const d=shortestDistance(st.opponentPaddleNode??'S',v);
+   if(Number.isFinite(d)) worstDistance=Math.max(worstDistance,d);
+   if(!canPayMoveDistance(d,movementAfter,energyAfter)) unaffordable++;
+  }
+ }
+ return {worstDistance,unaffordable,replies};
+}
+
+function botFutureReach(st,target,moveSpend,energySpend){
+ const movementAfter=st.opponentMovement-moveSpend;
+ const energyAfter=st.opponentEnergy-energySpend;
+ let reachable=0;
+ for(let v=1;v<=6;v++){
+  const d=shortestDistance(target,v);
+  if(canPayMoveDistance(d,movementAfter,energyAfter))reachable++;
+ }
+ return {movementAfter,energyAfter,reachable,totalCapacity:movementAfter+energyAfter};
+}
+
+function botIntermediateShot(st,isService){
+ const a=[];
+ const playerProgress=botProgress(st,'bottom');
+ const playerNeed=botObjectiveNeed(st,'bottom');
+ const playerUrgent=playerProgress>=Math.max(0,playerNeed-1);
+
+ for(let i=0;i<st.pingPiles.length;i++){
+  const p=st.pingPiles[i]; if(!p||!p.cards.length) continue;
+  if(!isService&&st.blockedColor===p.color) continue;
+  const printed=+p.cards[0];
+
+  for(let v=1;v<=6;v++){
+   const cost=Math.abs(printed-v);
+   if(cost>st.opponentEnergy) continue;
+   if(!isService&&!responseRuleAllows(st.lastPlayedColor,+st.lastPlayedValue,v)) continue;
+
+   const own=botBonus(st,'top',p.color,v);
+   const legacyOpp=botBonus(st,'bottom',p.color,v);
+   const energyAfter=st.opponentEnergy-cost;
+
+   const oppDistance=shortestDistance(st.localPaddleNode??'S',v);
+   const oppCanPay=canPayMoveDistance(oppDistance,st.localMovement,st.localEnergy);
+   const pressure=oppCanPay ? oppDistance*4 : 120;
+
+   let survivalPenalty=0;
+   if(energyAfter<=0) survivalPenalty+=28;
+   else if(energyAfter===1) survivalPenalty+=17;
+   else if(energyAfter===2) survivalPenalty+=9;
+   else if(energyAfter===3) survivalPenalty+=3;
+
+   if(st.opponentMovement<=2 && energyAfter<=2) survivalPenalty+=18;
+   else if(st.opponentMovement<=3 && energyAfter<=2) survivalPenalty+=9;
+
+   /* V2 : défense réelle de l'objectif adverse.
+      On regarde si CE coup laisse à J1 une réponse qui gagne immédiatement par objectif. */
+   const threat=botBottomImmediateObjectiveWins(st,{color:p.color,finalValue:v,cost});
+   let objectiveDefense=0;
+   if(threat.wins>0){
+    objectiveDefense -= playerUrgent ? 85*threat.wins : 38*threat.wins;
+   }else if(playerUrgent && threat.legal>0){
+    objectiveDefense += 20;
+   }
+
+   /* V2 : anticipation d'un échange.
+      Un coup est moins bon s'il ouvre des réponses que le BOT ne pourrait
+      ensuite plus réceptionner avec ses ressources restantes. */
+   const incoming=botIncomingRiskAfterShot(st,{color:p.color,finalValue:v,cost});
+   let futurePenalty=0;
+   futurePenalty += incoming.unaffordable*18;
+   if(incoming.worstDistance>=3 && st.opponentMovement+energyAfter<=3) futurePenalty+=16;
+   else if(incoming.worstDistance>=2 && st.opponentMovement+energyAfter<=2) futurePenalty+=12;
+
+   const score =
+      own
+      - 0.20*legacyOpp
+      - 3.0*cost
+      - survivalPenalty
+      + pressure
+      + objectiveDefense
+      - futurePenalty;
+
+   a.push({
+     pileIndex:i,color:p.color,printedValue:printed,finalValue:v,cost,
+     score,own,opp:legacyOpp,energyAfter,oppDistance,oppCanPay,pressure,
+     survivalPenalty,playerProgress,playerNeed,playerUrgent,
+     immediatePlayerObjectiveWins:threat.wins,
+     playerLegalReplies:threat.legal,
+     incomingWorstDistance:incoming.worstDistance,
+     incomingUnaffordableReplies:incoming.unaffordable,
+     futurePenalty,
+     objectiveDefense,
+     mode:'intermediate_v2'
+   });
+  }
+ }
+ a.sort((x,y)=>y.score-x.score||x.cost-y.cost||x.pileIndex-y.pileIndex||x.finalValue-y.finalValue);
+ return {choice:a[0]||null,count:a.length,options:a.map((o,rank)=>({...o,rank:rank+1}))};
+}
+
+function botShot(st,isService,difficulty='easy'){
+ return String(difficulty).startsWith('intermediate') ? botIntermediateShot(st,isService) : botEasyShot(st,isService);
+}
+function botEasyMoveChoice(st,target){
  const d=shortestDistance(st.opponentPaddleNode??'S',target);if(!Number.isFinite(d))return null;
- if(d===0)return{targetValue:+target,moveSpend:0,energySpend:0,distance:0};
- const a=[];for(let m=1;m<=d;m++){let e=d-m;if(m<=st.opponentMovement&&e<=st.opponentEnergy)a.push({targetValue:+target,moveSpend:m,energySpend:e,distance:d});}
- a.sort((x,y)=>x.energySpend-y.energySpend||y.moveSpend-x.moveSpend);return a[0]||null;
+ if(d===0)return{choice:{targetValue:+target,moveSpend:0,energySpend:0,distance:0,mode:'easy'},options:[{targetValue:+target,moveSpend:0,energySpend:0,distance:0,rank:1,mode:'easy'}]};
+ const a=[];for(let m=1;m<=d;m++){let e=d-m;if(m<=st.opponentMovement&&e<=st.opponentEnergy)a.push({targetValue:+target,moveSpend:m,energySpend:e,distance:d,mode:'easy'});}
+ a.sort((x,y)=>x.energySpend-y.energySpend||y.moveSpend-x.moveSpend);
+ return {choice:a[0]||null,options:a.map((o,rank)=>({...o,rank:rank+1}))};
+}
+
+function botIntermediateMoveChoice(st,target){
+ const d=shortestDistance(st.opponentPaddleNode??'S',target);if(!Number.isFinite(d))return null;
+ if(d===0)return{choice:{targetValue:+target,moveSpend:0,energySpend:0,distance:0,score:0,mode:'intermediate_v2'},options:[{targetValue:+target,moveSpend:0,energySpend:0,distance:0,score:0,rank:1,mode:'intermediate_v2'}]};
+
+ const a=[];
+ for(let m=1;m<=d;m++){
+  const e=d-m;
+  if(m>st.opponentMovement || e>st.opponentEnergy) continue;
+
+  const future=botFutureReach(st,+target,m,e);
+  const movementAfter=future.movementAfter;
+  const energyAfter=future.energyAfter;
+
+  let risk=0;
+
+  /* Survie immédiate : le déplacement à zéro perd le point. */
+  if(movementAfter<=0) risk+=1000;
+  else if(movementAfter===1) risk+=95;
+  else if(movementAfter===2) risk+=38;
+  else if(movementAfter===3) risk+=15;
+  else if(movementAfter===4) risk+=5;
+
+  if(energyAfter<=0) risk+=32;
+  else if(energyAfter===1) risk+=18;
+  else if(energyAfter===2) risk+=9;
+  else if(energyAfter===3) risk+=4;
+
+  /* V2 : capacité réelle au prochain échange.
+     On valorise le nombre de positions 1..6 que le BOT pourrait encore réceptionner. */
+  risk += (6-future.reachable)*14;
+
+  /* La somme des deux réserves doit rester suffisante pour encaisser une distance 3.
+     Ce n'est pas une garantie, mais une vraie marge de sécurité. */
+  if(future.totalCapacity<3) risk+=45;
+  else if(future.totalCapacity===3) risk+=15;
+
+  /* Léger équilibrage seulement : on évite les réserves très déséquilibrées
+     sans forcer un partage artificiel 50/50. */
+  risk += Math.abs(movementAfter-energyAfter)*1.2;
+
+  a.push({
+    targetValue:+target,moveSpend:m,energySpend:e,distance:d,
+    movementAfter,energyAfter,futureReachablePositions:future.reachable,
+    totalCapacity:future.totalCapacity,score:-risk,risk,mode:'intermediate_v2'
+  });
+ }
+ a.sort((x,y)=>x.risk-y.risk || y.futureReachablePositions-x.futureReachablePositions || y.movementAfter-x.movementAfter || y.energyAfter-x.energyAfter);
+ return {choice:a[0]||null,options:a.map((o,rank)=>({...o,rank:rank+1}))};
+}
+
+function botMoveChoice(st,target,difficulty='easy'){
+ return String(difficulty).startsWith('intermediate') ? botIntermediateMoveChoice(st,target) : botEasyMoveChoice(st,target);
 }
 function botService(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.serviceDone||st.pointServerSide!=='top'||st.phase!=='service')return;
- const z=botShot(st,true),c=z.choice;if(!c)return;const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
+ const z=botShot(st,true,r.botDifficulty),c=z.choice;if(!c)return;botAnalysis(room,'service',st,{chosen:c,options:z.options||[]},r.botDifficulty);const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
  st.lastServiceValue=c.finalValue;st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.phase='bottomMove';
  const action={type:'service',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost};st.boardPlays.push(action);
  botLog(room,`Service : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. ${z.count} choix évalués. Il vise son objectif ${st.playerObjectives.top} et voit votre objectif ${st.playerObjectives.bottom}.`);
  io.to(room).emit('freshServiceApplied',{state:st,action});
 }
 function botMove(room,r){
- const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;const m=botMoveChoice(st,+st.lastPlayedValue);
+ const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;const mz=botMoveChoice(st,+st.lastPlayedValue,r.botDifficulty),m=mz&&mz.choice;
  if(!m){markPointEnded(room,r,'bottom','impossibleMovement','Le BOT ne peut pas payer le déplacement requis.');return;}
+ botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:mz.options||[]},r.botDifficulty);
  st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=m.targetValue;const ended=maybeEndAfterMove(room,r,'top');if(!ended)st.phase='topResponse';
  botLog(room,m.distance===0?`Réception ${m.targetValue} : déjà en position.`:`Réception ${m.targetValue} : distance ${m.distance} → ${m.moveSpend} déplacement + ${m.energySpend} énergie.`);
  io.to(room).emit('freshTopMoveApplied',{state:st,action:{type:'topMove',targetValue:m.targetValue,moveSpend:m.moveSpend,energySpend:m.energySpend,distance:m.distance}});
  if(!ended)setTimeout(()=>botResponse(room,r),350);
 }
 function botResponse(room,r){
- const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topResponse')return;const before=botProgress(st,'top'),z=botShot(st,false),c=z.choice;
+ const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topResponse')return;const before=botProgress(st,'top'),z=botShot(st,false,r.botDifficulty),c=z.choice;
  if(!c){markPointEnded(room,r,'bottom','noLegalResponse','Le BOT n’a aucune réponse légale.');return;}
+ botAnalysis(room,'response',st,{chosen:c,options:z.options||[]},r.botDifficulty);
  const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
  const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost};st.boardPlays.push(action);
  const after=botProgress(st,'top');let e=null;
@@ -348,13 +599,19 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
 
 io.on('connection',socket=>{
   socket.on('createRoom',({name,opponentType})=>{
-    const room=makeCode(), state=makeInitialState(), botMode=opponentType==='bot';
+    const room=makeCode(), state=makeInitialState();
+    const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
+    const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
-    if(botMode) players.push({id:'BOT',name:'BOT',seat:'joiner',isBot:true});
-    rooms.set(room,{state,host:socket.id,players,botMode});
+    if(botMode) players.push({id:'BOT',name:String(botDifficulty).startsWith('intermediate')?'BOT Intermédiaire V2':'BOT Facile',seat:'joiner',isBot:true});
+    rooms.set(room,{state,host:socket.id,players,botMode,botDifficulty});
     socket.join(room);
-    socket.emit('roomCreated',{room,seat:'host',name,state,botMode});
-    if(botMode) io.to(room).emit('roomReady',{room,state,players:players.map(p=>({name:p.name,seat:p.seat,isBot:!!p.isBot})),botMode});
+    socket.emit('roomCreated',{room,seat:'host',name,state,botMode,botDifficulty});
+    if(botMode) io.to(room).emit('roomReady',{
+      room,state,
+      players:players.map(p=>({name:p.name,seat:p.seat,isBot:!!p.isBot})),
+      botMode,botDifficulty
+    });
   });
 
   socket.on('joinRoom',({name,room})=>{
@@ -724,15 +981,15 @@ io.on('connection',socket=>{
 });
 
 /*
-  V0.32 INTERNET
+  V0.34 INTERNET
   - en local : port 3000 ;
-  - chez un hébergeur : utilise automatiquement process.env.PORT.
-  Le serveur écoute toujours sur 0.0.0.0 pour accepter les connexions externes.
+  - sur Render : utilise automatiquement process.env.PORT ;
+  - écoute sur 0.0.0.0 pour les connexions externes.
 */
 const PORT=Number(process.env.PORT)||3000;
 httpServer.listen(PORT,'0.0.0.0',()=>{
-  console.log('PING! — V0.33 GitHub + Render');
-  console.log('----------------------------');
+  console.log('PING! — V0.34 GitHub + Render + BOTs');
+  console.log('-----------------------------------');
   console.log(`Port d'écoute : ${PORT}`);
 
   if(!process.env.PORT){
@@ -743,6 +1000,6 @@ httpServer.listen(PORT,'0.0.0.0',()=>{
       }
     }
   }else{
-    console.log('Mode hébergé : utilise l’URL publique fournie par ton hébergeur.');
+    console.log('Mode hébergé : utilise l’URL publique fournie par Render.');
   }
 });

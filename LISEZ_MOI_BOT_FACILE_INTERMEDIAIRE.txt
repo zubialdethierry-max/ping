@@ -1,0 +1,45 @@
+PING! — BOT FACILE / BOT INTERMÉDIAIRE
+
+BASE
+- V0.30 + journal d'analyse enrichi.
+- Le BOT facile conserve l'algorithme initial.
+- Le BOT intermédiaire ajoute une première vraie couche de gestion stratégique.
+
+BOT FACILE
+- Identique au BOT initial.
+- En déplacement : économise l'énergie en priorité, donc dépense souvent trop de déplacement.
+- En choix de tuile : priorité simple à son objectif, faible défense de l'objectif adverse.
+
+BOT INTERMÉDIAIRE — MODIFICATIONS
+1. Gestion déplacement / énergie
+   - évalue toutes les répartitions possibles ;
+   - pénalise fortement une réserve de déplacement à 0, 1 ou 2 ;
+   - évite aussi de vider complètement l'énergie ;
+   - recherche un meilleur équilibre des deux ressources ;
+   - ne suit plus automatiquement "maximum déplacement / minimum énergie".
+
+2. Survie
+   - prend en compte l'énergie qui restera après une modification de valeur ;
+   - lorsque son déplacement devient faible, il protège davantage son énergie
+     car elle pourra remplacer du déplacement aux prochains échanges.
+
+3. Pression sur J1
+   - valorise les valeurs finales éloignées de la position actuelle de J1 ;
+   - valorise très fortement un coup que J1 ne peut pas payer.
+
+4. Objectifs visibles
+   - poursuit toujours son propre objectif ;
+   - accorde davantage de poids au blocage de l'objectif visible de J1.
+
+JOURNAL
+Le CSV enrichi reste actif pour les deux niveaux.
+Chaque décision du BOT contient aussi le niveau utilisé, les options disponibles,
+leur classement et les scores de l'algorithme.
+
+OBJECTIF DES PROCHAINS TESTS
+Comparer les parties contre BOT facile et BOT intermédiaire et vérifier :
+- durée moyenne des points ;
+- nombre de défaites par déplacement à 0 ;
+- ressources restantes à la fin des points ;
+- progression vers les objectifs ;
+- alternatives que le BOT aurait pu choisir.

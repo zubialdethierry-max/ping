@@ -1,0 +1,42 @@
+PING! — V0.30 ANALYSE BOT
+
+Base :
+- V0.30 isolée.
+- Le serveur, les règles, le BOT et le moteur réseau n'ont pas été modifiés.
+
+Ajout :
+- Journal de partie visible.
+- Enregistrement de tous les services, déplacements/réceptions et réponses de J1 et du BOT.
+- Enregistrement des fins de point, nouveaux points et fin de partie.
+- Bouton « Exporter CSV ».
+
+Le CSV contient pour chaque action :
+- numéro de point et ordre exact ;
+- joueur ;
+- type d'action ;
+- pile, couleur, valeur imprimée, valeur finale, coût ;
+- cible de déplacement, distance, déplacement dépensé, énergie dépensée ;
+- énergie et déplacement restants des deux joueurs ;
+- position des deux raquettes ;
+- objectifs visibles J1 et BOT ;
+- score ;
+- couleur bloquée ;
+- dernière couleur/valeur jouée ;
+- raison des fins de point.
+
+Ce fichier est conçu pour être renvoyé à ChatGPT après une partie afin d'analyser
+le comportement du BOT coup par coup et comparer ses décisions à de meilleures options.
+
+CORRECTION JOURNAL :
+Le journal séparé ne voyait pas le socket Socket.IO, car celui-ci était privé
+dans le module réseau d'origine. Le socket est maintenant exposé uniquement
+comme référence de lecture au module journal.
+
+Résultat attendu :
+- "Journal de partie" visible dès l'ouverture ;
+- message "Journal prêt..." avant le démarrage ;
+- historique alimenté dès roomReady ;
+- bouton Exporter CSV visible dès le départ, puis activé dès qu'une ligne est enregistrée ;
+- ancien panneau "Décisions du BOT" masqué dans cette version d'analyse pour ne pas chevaucher le journal complet.
+
+Aucune règle, IA du BOT ou logique serveur modifiée.

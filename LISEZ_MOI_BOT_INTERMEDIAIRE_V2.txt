@@ -1,0 +1,39 @@
+PING! — BOT INTERMÉDIAIRE V2
+
+Cette version conserve :
+- BOT facile inchangé ;
+- règles du jeu inchangées ;
+- journal CSV enrichi inchangé dans son principe.
+
+Évolutions du BOT intermédiaire V2 :
+
+1. SURVIE AU PROCHAIN ÉCHANGE
+Le BOT ne regarde plus seulement l'équilibre déplacement/énergie après sa réception.
+Il calcule aussi combien de positions 1 à 6 il pourrait encore réceptionner ensuite.
+Une répartition qui laisse peu de positions accessibles est pénalisée.
+
+2. MARGE DE SÉCURITÉ
+Il protège davantage une réserve totale déplacement + énergie suffisante pour
+absorber une future distance de 3, et évite plus fortement M=1 ou M=0.
+
+3. DÉFENSE D'URGENCE CONTRE L'OBJECTIF DE J1
+Quand J1 est à un élément de compléter son objectif, le BOT examine réellement
+les réponses légales que son propre coup va laisser à J1.
+Un coup qui permet à J1 de gagner immédiatement par objectif reçoit une forte pénalité.
+Un coup qui supprime toutes ces réponses gagnantes reçoit un bonus défensif.
+
+4. ANTICIPATION À UN ÉCHANGE
+Pour chaque service/réponse envisagé, le BOT estime les réponses légales de J1
+et pénalise les coups ouvrant des réponses qu'il ne pourrait plus réceptionner ensuite.
+
+5. PRESSION
+La logique déjà ajoutée en V1 est conservée :
+- imposer de la distance à J1 est valorisé ;
+- un coup que J1 ne peut pas payer est fortement valorisé.
+
+Le BOT facile reste volontairement identique au BOT initial.
+
+Le journal CSV enregistre les nouvelles données d'évaluation dans les options JSON :
+futureReachablePositions, totalCapacity, immediatePlayerObjectiveWins,
+incomingWorstDistance, incomingUnaffordableReplies, futurePenalty,
+objectiveDefense, playerUrgent, etc.

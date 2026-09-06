@@ -1,0 +1,9 @@
+PING! V0.34
+
+Fusion réalisée à partir de :
+- branche BOT : V0.30 + BOT facile + BOT intermédiaire V2 + journal enrichi ;
+- branche Internet : V0.33 GitHub + Render.
+
+La logique de jeu et les algorithmes BOT proviennent de la branche BOT V2.
+Les éléments de déploiement Internet proviennent de la V0.33 :
+PORT dynamique, écoute 0.0.0.0, npm start, render.yaml, Procfile et /health.

@@ -1,16 +1,16 @@
 {
   "name": "ping-online",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "private": true,
-  "dependencies": {
-    "express": "^4.21.2",
-    "socket.io": "^4.8.1"
-  },
-  "description": "PING! - version réseau Internet",
+  "description": "PING! - réseau Internet + BOT facile + BOT intermédiaire V2 + journal enrichi",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
   }
 }

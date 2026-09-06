@@ -1,29 +1,39 @@
-PING! V0.33 — GITHUB + RENDER
+PING! V0.34 — MISE À JOUR GITHUB + RENDER
 
-OBJECTIF
-Mettre exactement le jeu que nous venons de valider en ligne,
-sans changer le moteur de jeu.
+1. DÉCOMPRESSE LE ZIP
 
-ÉTAPE 1 — GITHUB
-1. Crée un dépôt GitHub.
-2. Nom conseillé : ping-online
-3. Dépose tout le contenu de ce dossier à la racine du dépôt.
-4. Valide le commit.
+2. OUVRE LE DOSSIER
+   PING_V0_34_GITHUB_RENDER_BOTS
 
-ÉTAPE 2 — RENDER
-1. Connecte Render à GitHub.
-2. Crée un Web Service depuis le dépôt ping-online.
-3. Build Command : npm install
-4. Start Command : npm start
-5. Lance le déploiement.
+3. DANS TON DÉPÔT GITHUB "ping"
+   Dépose le CONTENU de ce dossier à la racine.
+   Remplace les anciens fichiers lorsqu'on te le demande.
 
-ÉTAPE 3 — TEST
-1. Ouvre l'URL publique Render sur ton ordinateur.
-2. Crée une partie.
-3. Depuis un autre appareil/réseau, ouvre la même URL.
-4. Rejoins avec le code à 4 chiffres.
+   Vérifie en particulier que ces fichiers sont à la racine :
+   - index.html
+   - server.js
+   - package.json
+   - render.yaml
+   - fond_ping_aquarelle.png
+
+4. FAIS LE COMMIT
+
+5. RENDER
+   Si ton service Render est déjà relié à ce dépôt et Auto Deploy activé :
+   aucune nouvelle configuration n'est normalement nécessaire.
+   Le déploiement doit se lancer après le commit.
+
+   Sinon :
+   - Build Command : npm install
+   - Start Command : npm start
+   - Health Check : /health
+
+6. TEST
+   - vérifie d'abord BOT facile ;
+   - vérifie BOT intermédiaire V2 ;
+   - puis teste une salle Joueur contre Joueur avec deux appareils.
 
 À NE PAS FAIRE
-- Ne lance pas le .bat sur Render.
-- Ne mets pas node_modules sur GitHub.
-- Ne change pas le port en dur : Render fournit automatiquement PORT.
+- ne mets pas node_modules sur GitHub ;
+- ne lance pas le fichier .bat sur Render ;
+- ne remplace pas PORT par un numéro fixe dans server.js.

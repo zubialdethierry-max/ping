@@ -1,76 +1,62 @@
-# PING! — Version en ligne
+# PING! — V0.34 en ligne
 
-Version V0.33 préparée pour **GitHub + Render**.
+Cette version réunit dans un seul paquet :
 
-## Fonctionnement
+- jeu **Joueur contre Joueur** via Internet ;
+- **BOT facile** (algorithme initial conservé) ;
+- **BOT intermédiaire V2** ;
+- journal CSV enrichi pour analyser les décisions du BOT ;
+- configuration **GitHub + Render**.
 
-- GitHub contient les fichiers du jeu.
-- Render récupère automatiquement le dépôt GitHub.
-- Render lance `npm install`, puis `npm start`.
-- Le serveur Node.js/Socket.IO devient accessible via une URL publique.
-- Les deux joueurs ouvrent la même URL.
-- J1 crée une partie et obtient un code à 4 chiffres.
-- J2 rejoint la partie avec ce code.
-- Le mode BOT reste disponible.
+## Mise à jour de ton dépôt GitHub existant
 
-## Déploiement sur GitHub
+Décompresse ce ZIP puis dépose **le contenu du dossier** `PING_V0_34_GITHUB_RENDER_BOTS`
+à la racine de ton dépôt GitHub `ping`.
 
-1. Créer un nouveau dépôt GitHub, par exemple `ping-online`.
-2. Décompresser ce dossier.
-3. Envoyer **le contenu du dossier** dans le dépôt GitHub :
-   - `index.html`
-   - `server.js`
-   - `package.json`
-   - `render.yaml`
-   - `fond_ping_aquarelle.png`
-   - `.gitignore`
-   - les autres fichiers fournis
-4. Vérifier que `package.json` et `server.js` sont bien à la racine du dépôt.
+Les fichiers importants doivent être directement à la racine :
 
-## Déploiement sur Render
+- `index.html`
+- `server.js`
+- `package.json`
+- `render.yaml`
+- `fond_ping_aquarelle.png`
 
-1. Ouvrir Render.
-2. Créer un nouveau **Web Service**.
-3. Connecter le compte GitHub.
-4. Sélectionner le dépôt `ping-online`.
-5. Si Render détecte `render.yaml`, utiliser la configuration proposée.
-6. Sinon renseigner :
-   - Runtime : `Node`
-   - Build Command : `npm install`
-   - Start Command : `npm start`
-7. Déployer.
+Tu peux remplacer les anciennes versions de ces fichiers.
 
-Render fournit ensuite une URL publique du type :
+Après le commit, si ton service Render est déjà relié au dépôt et que l'auto-déploiement
+est actif, Render redéploiera automatiquement la V0.34.
 
-`https://ping-online-xxxx.onrender.com`
+## Configuration Render
 
-## Premier test Internet
+- Runtime : Node
+- Build Command : `npm install`
+- Start Command : `npm start`
+- Health Check Path : `/health`
 
-Sur le premier appareil :
-1. ouvrir l'URL Render ;
-2. entrer le prénom ;
-3. cliquer sur **Jouer contre un joueur** ;
-4. noter le code de salle.
+Le serveur utilise automatiquement la variable `PORT` fournie par Render.
 
-Sur le second appareil, idéalement sur un autre réseau :
-1. ouvrir la même URL Render ;
-2. entrer le prénom ;
-3. choisir **Rejoindre une partie** ;
-4. saisir le code de salle.
+## Modes disponibles
+
+### Joueur contre Joueur
+Même fonctionnement réseau que la version Internet précédente :
+J1 crée une salle, partage le code, J2 rejoint depuis la même URL publique.
+
+### BOT facile
+Conserve le comportement du BOT initial.
+
+### BOT intermédiaire V2
+Ajoute :
+- meilleure gestion déplacement / énergie ;
+- marge de survie au prochain échange ;
+- pression sur les ressources adverses ;
+- défense renforcée de l'objectif adverse visible ;
+- anticipation simple à un échange.
+
+### Journal CSV
+Le journal enrichi reste disponible pour les parties contre BOT afin de comparer
+le coup joué aux autres choix légalement disponibles.
 
 ## Important
 
-Les salles sont actuellement stockées en mémoire du serveur.
-Si Render redémarre le service, une partie en cours sera perdue.
-
-Ce n'est pas bloquant pour les premiers tests Internet.
-Les prochaines étapes de robustesse seront :
-- reconnexion automatique ;
-- reprise de partie après une coupure ;
-- nettoyage des salles inactives ;
-- éventuellement stockage persistant.
-
-## Version de référence
-
-La V0.31 reste la référence esthétique/fonctionnelle locale.
-La V0.33 reprend cette base avec la préparation GitHub + Render.
+Les salles restent stockées en mémoire du serveur.
+Un redémarrage du service Render interrompt donc les parties en cours.

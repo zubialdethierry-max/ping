@@ -216,9 +216,3 @@ V0.30 — esthétique :
   seuls les blancs reliés au bord des images sont rendus transparents,
   afin de conserver les blancs internes utiles aux illustrations ;
 - aucune logique de jeu, réseau ou BOT modifiée.
-
-V0.31 — esthétique uniquement :
-- ajout du titre PING! en haut à droite ;
-- titre centré dynamiquement entre le bord droit du plateau et le bord droit de la fenêtre ;
-- typographie sportive condensée, grasse et italique, sans image générée ;
-- aucune logique de jeu, BOT ou réseau modifiée.

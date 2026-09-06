@@ -1208,32 +1208,13 @@ body.fresh-seat-joiner #sideStack .resourceTopWrap{
 </style>
 
 
-<style id="fresh-v031-title-style">
-#pingGameTitle{
-  position:fixed;
-  top:14px;
-  left:75vw; /* remplacé dynamiquement par JS selon la vraie position du plateau */
-  transform:translateX(-50%);
-  z-index:12000;
-  pointer-events:none;
-  user-select:none;
-  white-space:nowrap;
+<style id="fresh-v030-journal-fix-style">
+/* Version analyse : le journal complet remplace visuellement l'ancien panneau BOT. */
+#freshBotJournal{
+  display:none !important;
 }
-#pingGameTitle .pingTitleMain{
-  display:inline-block;
-  font-family:"Arial Narrow","Roboto Condensed","Impact","Arial Black",sans-serif;
-  font-size:clamp(34px,4.1vw,72px);
-  line-height:.9;
-  font-weight:900;
-  font-style:italic;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  color:#0b3f78;
-  -webkit-text-stroke:1px rgba(255,255,255,.85);
-  text-shadow:
-    0 2px 0 rgba(255,255,255,.85),
-    0 5px 10px rgba(0,55,110,.20);
-  transform:skewX(-8deg);
+#freshMatchJournal{
+  display:block !important;
 }
 </style>
 
@@ -1242,12 +1223,13 @@ body.fresh-seat-joiner #sideStack .resourceTopWrap{
 
 <div id="freshLanLobby">
   <div id="freshLanCard">
-    <h1>PING! — Réseau — V0.33</h1>
+    <h1>PING! — Réseau — V0.34</h1>
     <input id="freshName" placeholder="Prénom">
-<div style="font-size:13px;line-height:1.35;opacity:.85;margin-bottom:8px">Le créateur obtient un code de salle. En réseau local ou via Internet, le second joueur ouvre la même adresse, choisit « Rejoindre une partie » et saisit ce code.</div>
+<div style="font-size:13px;line-height:1.35;opacity:.85;margin-bottom:8px">Le créateur obtient un code de salle. Le second joueur choisit « Rejoindre une partie » et saisit ce code.</div>
     <div>
       <button id="freshCreate" class="primary">Jouer contre un joueur</button>
-      <button id="freshCreateBot" class="primary">Jouer contre le bot</button>
+      <button id="freshCreateBotEasy" class="primary">BOT facile</button>
+      <button id="freshCreateBotIntermediate" class="primary">BOT intermédiaire V2</button>
       <button id="freshShowJoin" class="secondary">Rejoindre une partie</button>
     </div>
     <div id="freshJoinRow">
@@ -1264,11 +1246,6 @@ body.fresh-seat-joiner #sideStack .resourceTopWrap{
 </div>
 <div id="freshSyncBadge">FRESH V0.16 — non connecté</div>
 <script src="/socket.io/socket.io.js"></script>
-
-
-<div id="pingGameTitle" aria-label="PING!">
-  <span class="pingTitleMain">PING!</span>
-</div>
 
 <div id="stage">
   
@@ -3504,6 +3481,7 @@ window.addEventListener('load',()=>{
 <script id="fresh-lan-client-v02">
 (() => {
   const socket=io();
+  window.freshPingSocket = socket;
   const lobby=document.getElementById('freshLanLobby');
   const roomBox=document.getElementById('freshRoomBox');
   const badge=document.getElementById('freshSyncBadge');
@@ -3588,7 +3566,7 @@ window.addEventListener('load',()=>{
     }
   }
 
-  socket.on('connect',()=>{ badge.textContent='V0.33 — serveur connecté'; });
+  socket.on('connect',()=>{ badge.textContent='V0.34 — serveur connecté'; });
   socket.on('roomCreated',enter);
   socket.on('roomJoined',enter);
   socket.on('roomReady',payload=>{
@@ -3968,10 +3946,15 @@ window.addEventListener('load',()=>{
     const name=$('freshName').value.trim(); if(!name) return alert('Entre ton prénom.');
     socket.emit('createRoom',{name,opponentType:'human'});
   };
-  $('freshCreateBot').onclick=()=>{
+  $('freshCreateBotEasy').onclick=()=>{
     const name=$('freshName').value.trim(); if(!name) return alert('Entre ton prénom.');
     freshBotMode=true;
-    socket.emit('createRoom',{name,opponentType:'bot'});
+    socket.emit('createRoom',{name,opponentType:'bot_easy'});
+  };
+  $('freshCreateBotIntermediate').onclick=()=>{
+    const name=$('freshName').value.trim(); if(!name) return alert('Entre ton prénom.');
+    freshBotMode=true;
+    socket.emit('createRoom',{name,opponentType:'bot_intermediate'});
   };
   $('freshJoin').onclick=()=>{
     const name=$('freshName').value.trim();
@@ -4373,41 +4356,338 @@ body::after{
 
 
 
-<script id="fresh-v031-title-position">
+<style id="fresh-v030-match-journal-style">
+#freshMatchJournal{
+  display:none;
+  position:fixed;
+  left:14px;
+  top:14px;
+  z-index:12050;
+  width:min(520px,46vw);
+  max-height:300px;
+  overflow:hidden;
+  background:rgba(5,24,47,.95);
+  color:#fff;
+  border:1px solid rgba(255,255,255,.32);
+  border-radius:12px;
+  box-shadow:0 6px 24px rgba(0,0,0,.24);
+  font:12.5px/1.35 Arial,sans-serif;
+}
+#freshMatchJournalHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  border-bottom:1px solid rgba(255,255,255,.16);
+}
+#freshMatchJournalHeader strong{
+  font-size:14px;
+}
+#freshExportCsv{
+  border:1px solid rgba(255,255,255,.45);
+  background:#fff;
+  color:#0b2742;
+  border-radius:8px;
+  padding:6px 9px;
+  font-weight:700;
+  cursor:pointer;
+}
+#freshExportCsv:disabled{
+  opacity:.45;
+  cursor:default;
+}
+#freshMatchJournalLines{
+  max-height:240px;
+  overflow:auto;
+  padding:0 10px 8px;
+}
+.freshMatchLine{
+  padding:6px 0;
+  border-top:1px solid rgba(255,255,255,.12);
+}
+.freshMatchLine:first-child{
+  border-top:none;
+}
+.freshMatchLine .meta{
+  opacity:.72;
+  font-size:11px;
+}
+</style>
+
+<div id="freshMatchJournal">
+  <div id="freshMatchJournalHeader">
+    <strong>Journal de partie</strong>
+    <button id="freshExportCsv" type="button" disabled>Exporter CSV</button>
+  </div>
+  <div id="freshMatchJournalLines"></div>
+</div>
+
+
+<script id="fresh-v030-match-journal-logic">
 (function(){
-  function placePingTitle(){
-    const title=document.getElementById('pingGameTitle');
-    const table=document.getElementById('tableWrap') || document.getElementById('table');
-    if(!title || !table) return;
+  const rows=[];
+  const botAnalyses=[];
+  let pointNo=1;
+  let seq=0;
 
-    const rect=table.getBoundingClientRect();
-    const leftEdge=Math.max(0, rect.right);
-    const rightEdge=window.innerWidth;
-    const center=leftEdge + (rightEdge-leftEdge)/2;
-
-    title.style.left=center+'px';
-
-    /* Si l'espace devient très étroit, on réduit légèrement le titre. */
-    const available=Math.max(160, rightEdge-leftEdge);
-    const main=title.querySelector('.pingTitleMain');
-    if(main){
-      main.style.maxWidth=Math.max(140, available-24)+'px';
-    }
+  function csvEscape(v){
+    if(v===null || v===undefined) return '';
+    const s=String(v);
+    return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
   }
 
-  window.addEventListener('load',()=>requestAnimationFrame(placePingTitle));
-  window.addEventListener('resize',()=>requestAnimationFrame(placePingTitle));
+  function sideLabel(side){
+    if(side==='bottom') return 'J1';
+    if(side==='top') return 'BOT/J2';
+    return side || '';
+  }
 
-  /* fitWholeBoard recalcule l'échelle du plateau : on se recale juste après. */
-  const oldFit=window.fitWholeBoard;
-  if(typeof oldFit==='function'){
-    window.fitWholeBoard=function(){
-      oldFit.apply(this,arguments);
-      requestAnimationFrame(placePingTitle);
+  function snapshot(state){
+    if(!state) return {};
+    return {
+      phase: state.phase ?? '',
+      pointServerSide: state.pointServerSide ?? '',
+      blockedColor: state.blockedColor ?? '',
+      lastPlayedColor: state.lastPlayedColor ?? '',
+      lastPlayedValue: state.lastPlayedValue ?? '',
+      j1Energy: state.localEnergy ?? '',
+      j1Movement: state.localMovement ?? '',
+      botEnergy: state.opponentEnergy ?? '',
+      botMovement: state.opponentMovement ?? '',
+      j1Paddle: state.localPaddleNode ?? '',
+      botPaddle: state.opponentPaddleNode ?? '',
+      j1Objective: state.playerObjectives?.bottom ?? '',
+      botObjective: state.playerObjectives?.top ?? '',
+      j1Score: state.matchScore?.bottom ?? '',
+      botScore: state.matchScore?.top ?? ''
     };
   }
 
-  setTimeout(placePingTitle,100);
+  function addRow(kind, actor, action, state, note){
+    seq++;
+    const s=snapshot(state);
+    const row={
+      sequence:seq,
+      point:pointNo,
+      timestamp:new Date().toISOString(),
+      actor:actor||'SYSTEME',
+      action_type:kind||'',
+      bot_difficulty:'',
+      pile_index:action?.pileIndex ?? '',
+      color:action?.color ?? '',
+      printed_value:action?.printedValue ?? '',
+      final_value:action?.finalValue ?? '',
+      energy_cost:action?.cost ?? '',
+      target_value:action?.targetValue ?? '',
+      distance:action?.distance ?? '',
+      movement_spent:action?.moveSpend ?? '',
+      energy_spent_move:action?.energySpend ?? '',
+      phase_after:s.phase,
+      server_side:s.pointServerSide,
+      blocked_color:s.blockedColor,
+      last_played_color:s.lastPlayedColor,
+      last_played_value:s.lastPlayedValue,
+      j1_energy_after:s.j1Energy,
+      j1_movement_after:s.j1Movement,
+      bot_energy_after:s.botEnergy,
+      bot_movement_after:s.botMovement,
+      j1_paddle_after:s.j1Paddle,
+      bot_paddle_after:s.botPaddle,
+      j1_objective:s.j1Objective,
+      bot_objective:s.botObjective,
+      j1_score:s.j1Score,
+      bot_score:s.botScore,
+      bot_visible_piles:'',
+      bot_legal_options:'',
+      bot_chosen_option:'',
+      bot_alternative_count:'',
+      bot_decision_scores:'',
+      note:note||''
+    };
+    rows.push(row);
+    renderRow(row);
+    const b=document.getElementById('freshExportCsv');
+    if(b) b.disabled=rows.length===0;
+  }
+
+  function addAnalysisRow(payload){
+    if(!payload || !payload.kind) return;
+    const st=payload.state||{}, data=payload.data||{}, opts=Array.isArray(data.options)?data.options:[];
+    seq++;
+    const row={
+      sequence:seq,
+      point:pointNo,
+      timestamp:payload.at||new Date().toISOString(),
+      actor:'BOT/J2',
+      action_type:'decision_'+payload.kind,
+      bot_difficulty:payload.difficulty||'easy',
+      pile_index:data.chosen?.pileIndex ?? '',
+      color:data.chosen?.color ?? '',
+      printed_value:data.chosen?.printedValue ?? '',
+      final_value:data.chosen?.finalValue ?? '',
+      energy_cost:data.chosen?.cost ?? '',
+      target_value:data.targetValue ?? data.chosen?.targetValue ?? '',
+      distance:data.chosen?.distance ?? '',
+      movement_spent:data.chosen?.moveSpend ?? '',
+      energy_spent_move:data.chosen?.energySpend ?? '',
+      phase_after:st.phase ?? '',
+      server_side:st.pointServerSide ?? '',
+      blocked_color:st.blockedColor ?? '',
+      last_played_color:st.lastPlayedColor ?? '',
+      last_played_value:st.lastPlayedValue ?? '',
+      j1_energy_after:st.playerEnergy ?? '',
+      j1_movement_after:st.playerMovement ?? '',
+      bot_energy_after:st.botEnergy ?? '',
+      bot_movement_after:st.botMovement ?? '',
+      j1_paddle_after:st.playerPaddle ?? '',
+      bot_paddle_after:st.botPaddle ?? '',
+      j1_objective:st.playerObjective ?? '',
+      bot_objective:st.botObjective ?? '',
+      j1_score:'',
+      bot_score:'',
+      bot_visible_piles:JSON.stringify(st.visiblePiles||[]),
+      bot_legal_options:JSON.stringify(opts),
+      bot_chosen_option:JSON.stringify(data.chosen||null),
+      bot_alternative_count:Math.max(0,opts.length-1),
+      bot_decision_scores:JSON.stringify(opts.map(o=>({rank:o.rank,score:o.score??'',own:o.own??'',opp:o.opp??'',cost:o.cost??'',moveSpend:o.moveSpend??'',energySpend:o.energySpend??''}))),
+      note:`Progression BOT/J1 avant décision : ${st.botProgress??''}/${st.playerProgress??''}`
+    };
+    rows.push(row);
+    botAnalyses.push(payload);
+    renderRow(row);
+    const b=document.getElementById('freshExportCsv'); if(b)b.disabled=false;
+  }
+
+  function renderRow(r){
+    const box=document.getElementById('freshMatchJournalLines');
+    if(!box) return;
+    const d=document.createElement('div');
+    d.className='freshMatchLine';
+
+    let text='';
+    if(r.action_type.startsWith('decision_')){
+      const k=r.action_type.replace('decision_','');
+      text=`Analyse BOT — ${k} : ${r.bot_alternative_count} alternative(s) enregistrée(s)`;
+    }else if(r.action_type==='service'){
+      text=`${r.actor} — service ${r.color} ${r.printed_value} → ${r.final_value} (coût ${r.energy_cost})`;
+    }else if(r.action_type==='response'){
+      text=`${r.actor} — réponse ${r.color} ${r.printed_value} → ${r.final_value} (coût ${r.energy_cost})`;
+    }else if(r.action_type==='move'){
+      text=`${r.actor} — réception/déplacement vers ${r.target_value} : ${r.movement_spent} dép. + ${r.energy_spent_move} énergie`;
+    }else if(r.action_type==='point_end'){
+      text=`Fin du point ${r.point} — ${r.note}`;
+    }else if(r.action_type==='next_point'){
+      text=`Début du point ${r.point} — serveur : ${sideLabel(r.server_side)}`;
+    }else if(r.action_type==='match_end'){
+      text=`Fin de partie — ${r.note}`;
+    }else{
+      text=`${r.actor} — ${r.action_type}`;
+    }
+
+    d.innerHTML=`<div>${text}</div><div class="meta">Énergie J1/BOT : ${r.j1_energy_after}/${r.bot_energy_after} · Dépl. J1/BOT : ${r.j1_movement_after}/${r.bot_movement_after} · Obj. J1/BOT : ${r.j1_objective}/${r.bot_objective}</div>`;
+    box.prepend(d);
+  }
+
+  function exportCsv(){
+    if(!rows.length) return;
+    const headers=Object.keys(rows[0]);
+    const lines=[headers.join(',')];
+    for(const r of rows){
+      lines.push(headers.map(h=>csvEscape(r[h])).join(','));
+    }
+    const blob=new Blob(["\uFEFF"+lines.join("\n")],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+    a.href=url;
+    a.download=`PING_partie_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  function maybeShowJournal(){
+    const j=document.getElementById('freshMatchJournal');
+    if(j) j.style.display='block';
+  }
+
+  window.addEventListener('load',()=>{
+    const b=document.getElementById('freshExportCsv');
+    if(b) b.addEventListener('click',exportCsv);
+    const box=document.getElementById('freshMatchJournalLines');
+    if(box && !box.children.length){
+      const d=document.createElement('div');
+      d.className='freshMatchLine';
+      d.id='freshJournalWaiting';
+      d.innerHTML='<div>Journal prêt — en attente du début de partie.</div>';
+      box.appendChild(d);
+    }
+  });
+
+  /* Socket.IO : on ajoute des écouteurs passifs.
+     Les écouteurs déjà existants continuent de faire tourner le jeu. */
+  const waitSocket=setInterval(()=>{
+    const journalSocket=window.freshPingSocket;
+    if(!journalSocket || typeof journalSocket.on!=='function') return;
+    clearInterval(waitSocket);
+
+    journalSocket.on('roomReady',payload=>{
+      maybeShowJournal();
+      pointNo=1;
+      seq=0;
+      rows.length=0;
+      botAnalyses.length=0;
+      const box=document.getElementById('freshMatchJournalLines');
+      if(box) box.innerHTML='';
+      addRow('next_point','SYSTEME',null,payload?.state,'Début de partie');
+    });
+
+    journalSocket.on('freshBotAnalysis',payload=>{
+      addAnalysisRow(payload);
+    });
+
+    journalSocket.on('freshServiceApplied',payload=>{
+      const a=payload?.action;
+      addRow('service',sideLabel(a?.side),a,payload?.state,'');
+    });
+
+    journalSocket.on('freshTopMoveApplied',payload=>{
+      addRow('move','BOT/J2',payload?.action,payload?.state,'');
+    });
+
+    journalSocket.on('freshBottomMoveApplied',payload=>{
+      addRow('move','J1',payload?.action,payload?.state,'');
+    });
+
+    journalSocket.on('freshTopResponseApplied',payload=>{
+      addRow('response','BOT/J2',payload?.action,payload?.state,'');
+    });
+
+    journalSocket.on('freshBottomResponseApplied',payload=>{
+      addRow('response','J1',payload?.action,payload?.state,'');
+    });
+
+    journalSocket.on('freshPointEnded',payload=>{
+      const winner=sideLabel(payload?.winnerSide);
+      const reason=payload?.reason||'';
+      const msg=payload?.message||'';
+      addRow('point_end','SYSTEME',null,payload?.state,`vainqueur ${winner} — ${reason} — ${msg}`);
+    });
+
+    journalSocket.on('freshNextPoint',payload=>{
+      pointNo++;
+      addRow('next_point','SYSTEME',null,payload?.state,`Nouveau point après victoire ${sideLabel(payload?.previousWinnerSide)}`);
+    });
+
+    journalSocket.on('freshMatchWon',payload=>{
+      addRow('match_end','SYSTEME',null,payload?.state,`vainqueur ${sideLabel(payload?.winnerSide)}`);
+    });
+  },50);
+
+  /* Pour analyse future par ChatGPT, le CSV contient aussi l'état APRÈS chaque action :
+     ressources, positions, objectifs visibles, score, couleur bloquée, dernière valeur jouée. */
 })();
 </script>
 
