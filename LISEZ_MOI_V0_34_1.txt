@@ -1,0 +1,12 @@
+PING! V0.34.1
+
+Correctif ciblé de la V0.34 :
+- le journal BOT reste affiché ;
+- le bouton « Exporter CSV » est forcé visible dans l'interface réseau ;
+- aucune règle du jeu n'a été modifiée ;
+- BOT facile et BOT intermédiaire V2 inchangés ;
+- configuration GitHub + Render inchangée.
+
+Mise à jour :
+remplace les fichiers de ton dépôt GitHub ping par ceux de ce dossier, puis commit.
+Si Auto Deploy est actif sur Render, le redéploiement se lance automatiquement.
