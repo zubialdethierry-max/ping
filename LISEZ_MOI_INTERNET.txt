@@ -1,0 +1,30 @@
+PING! — V0.32 PRÉPARATION RÉSEAU INTERNET
+
+Cette version conserve le moteur de jeu, le BOT et la logique réseau de la V0.31.
+La différence est l'hébergement :
+
+1. EN LOCAL
+   - lancer LANCER_PING_RESEAU.bat
+   - fonctionnement identique aux versions précédentes.
+
+2. SUR INTERNET
+   - le dossier peut être déployé sur un hébergeur Node.js.
+   - commande de démarrage : npm start
+   - le port est fourni automatiquement par l'hébergeur via la variable PORT.
+   - une route /health est disponible pour vérifier que le serveur fonctionne.
+   - render.yaml et Procfile sont inclus pour faciliter un premier déploiement.
+
+3. PRINCIPE DE JEU EN LIGNE
+   - J1 ouvre l'URL publique et crée une partie.
+   - J2 ouvre LA MÊME URL publique depuis un autre réseau/ordinateur.
+   - J2 saisit le code de salle à 4 chiffres.
+   - Socket.IO synchronise la partie via le serveur public.
+
+IMPORTANT POUR CE PREMIER STADE
+   - Les salles sont gardées en mémoire vive du serveur.
+   - Si l'hébergeur redémarre, les parties en cours sont perdues.
+   - Pour une vraie version publique robuste, on ajoutera ensuite :
+     reconnexion, reprise de partie, nettoyage des salles expirées,
+     éventuellement stockage persistant et sécurisation plus poussée.
+
+La V0.31 reste la référence esthétique/fonctionnelle précédente.

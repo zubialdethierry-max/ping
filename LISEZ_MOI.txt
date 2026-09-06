@@ -1,0 +1,224 @@
+PING! Fresh LAN V0.1
+
+Cette version repart directement de PING V6.7 autonome.
+Aucun code des anciennes versions LAN V1.x n'est repris.
+
+But unique de ce test :
+- le serveur crée les 6 piles complètes de 3 tuiles ;
+- le serveur crée la pioche de 14 objectifs et distribue les 2 premiers ;
+- l'hôte reçoit cet état dès la création de la salle ;
+- l'invité reçoit exactement le même état lorsqu'il rejoint ;
+- roomReady réapplique exactement le même état aux deux.
+
+Il n'y a volontairement PAS encore de synchronisation des actions, PAS de nouveau point réseau et PAS d'orientation invitée. On teste d'abord une seule chose : le même départ sur les deux écrans.
+
+V0.2 — CORRECTIF BOUTONS
+Le script client LAN avait été injecté avec des caractères \n littéraux au lieu de vrais retours à la ligne.
+Le navigateur n'exécutait donc pas le script et les boutons Créer/Rejoindre restaient inactifs.
+V0.2 corrige uniquement ce défaut, sans changer l'architecture Fresh.
+
+FRESH V0.3 — LOBBY CORRIGÉ
+- Le créateur saisit son prénom puis clique "Créer une partie".
+- Le serveur crée la salle et renvoie un code à 4 chiffres.
+- Le créateur RESTE dans le lobby avec ce code visible.
+- Le second joueur ouvre la même adresse réseau, clique "Rejoindre une partie",
+  saisit son prénom + le code.
+- Tant que le deuxième joueur n'a pas rejoint, le plateau reste masqué.
+- Dès que le serveur a 2 joueurs, il envoie le même état initial aux deux,
+  ferme le lobby sur les deux écrans et affiche la partie.
+
+FRESH V0.4 — ORIENTATION DES DEUX JOUEURS
+- Joueur 1 (créateur) conserve sa vue actuelle : son côté est en bas.
+- Joueur 2 (invité) voit SON côté logique en bas et à l'endroit.
+- Le plateau central du joueur 2 est retourné de 180°, sans jamais retourner le stage complet.
+- Les pistes énergie/déplacement sont échangées haut/bas et réorientées pour le joueur 2.
+- Les pistes de score sont échangées haut/bas et réorientées pour le joueur 2.
+- Les 6 piles de tuiles au centre restent lisibles et ne sont pas retournées.
+- L'état serveur (tuiles + objectifs) reste exactement le même pour les deux joueurs.
+
+FRESH V0.5 — PREMIER PASSAGE DE MAIN RÉSEAU
+Test ciblé :
+1) Joueur 1 choisit une tuile puis valide sa valeur.
+2) Le client n'exécute plus cette action tout seul : il l'envoie au serveur.
+3) Le serveur retire la tuile de la pile commune, calcule l'énergie et diffuse l'action.
+4) La tuile jouée doit apparaître sur LES DEUX écrans.
+5) Le popup de déplacement ne doit PAS apparaître chez J1.
+6) Le popup de déplacement doit apparaître UNIQUEMENT chez J2.
+Cette version ne prétend pas encore synchroniser toute la suite du point.
+
+FRESH V0.6 — DÉPLACEMENT J2 SYNCHRONISÉ
+Test ciblé :
+1) J1 choisit/valide son service.
+2) La tuile apparaît sur les deux écrans ; popup déplacement uniquement chez J2.
+3) J2 choisit sa répartition déplacement/énergie.
+4) Le choix est validé par le serveur puis visible sur les deux écrans :
+   piste déplacement, piste énergie et raquette de J2 doivent être identiques.
+5) Le popup déplacement disparaît.
+6) J2 doit ensuite pouvoir choisir une tuile de réponse.
+7) J1 ne doit avoir aucun popup ni tuile cliquable : il attend la réponse de J2.
+La réponse elle-même n'est pas encore synchronisée dans cette version.
+
+FRESH V0.7 — RÉPONSE J2 + JETON INTERDICTION + PASSAGE À J1
+Test :
+1) J1 sert.
+2) J2 déplace sa raquette.
+3) J2 choisit une tuile de réponse et valide sa valeur.
+4) La réponse doit apparaître sur LES DEUX écrans.
+5) Immédiatement après la réponse, le jeton interdiction doit se placer entre
+   les deux piles de la COULEUR QUI VIENT D'ÊTRE JOUÉE.
+6) Les deux piles de cette couleur doivent être bloquées pour le joueur suivant.
+7) Le popup suivant (déplacement vers la valeur reçue) doit apparaître UNIQUEMENT chez J1.
+8) Chez J2, aucun nouveau popup ne doit apparaître.
+Cette version s'arrête volontairement avant la validation réseau du déplacement de J1.
+
+FRESH V0.8 — CORRECTION VALIDATION RÉPONSE J2
+Problème corrigé :
+- un ancien listener autonome interceptait "Valider" avant la couche réseau ;
+- il jouait la réponse seulement en local ;
+- il affichait le jeton interdiction localement ;
+- il grisait ensuite toutes les piles ;
+- aucun message n'était envoyé au serveur.
+
+Correction :
+- le bouton "Valider" de la réponse est remplacé par un clone propre au démarrage ;
+- les anciens listeners restent sur l'ancien bouton retiré ;
+- seule la couche réseau traite désormais la validation de réponse.
+
+Test attendu :
+J2 valide sa réponse -> envoi serveur -> tuile visible sur les deux écrans ->
+jeton interdiction sur la couleur jouée -> popup de déplacement uniquement chez J1.
+
+FRESH V0.11 — CORRECTION CIBLÉE J2 / J1
+Diagnostic confirmé :
+- V0.8 clonait le bouton de validation de réponse sur LES DEUX écrans.
+- Le clone était utile sur J2 pour neutraliser les anciens listeners autonomes.
+- Mais sur J1 il supprimait aussi les handlers nécessaires pour poursuivre la boucle.
+
+Correction :
+- J1 garde le bouton original, intact.
+- J2 seulement reçoit un bouton cloné propre après son entrée dans la salle.
+- Le handler réseau de réponse est attaché uniquement au bouton propre de J2.
+- Le passage J2 -> J1 doit donc à nouveau déclencher le popup de déplacement chez J1.
+
+Test attendu :
+J1 sert -> J2 déplace -> J2 répond -> jeton interdiction ->
+popup déplacement chez J1.
+
+FRESH V0.12 — BOUCLE DE RALLYE J1 -> J2
+Correction du problème observé :
+- après la deuxième réponse de J1, l'ancien moteur ouvrait openMoveAllocation()
+  directement sur l'écran de J1 ;
+- le choix de J1 n'était donc pas encore passé par le serveur.
+
+Désormais :
+1. le déplacement de J1 est envoyé/validé par le serveur ;
+2. la réponse de J1 est envoyée/validée par le serveur ;
+3. la tuile et le jeton interdiction sont synchronisés ;
+4. le popup suivant s'ouvre UNIQUEMENT chez J2 ;
+5. J1 passe en attente.
+
+C'est la première version où la boucle J1 -> J2 est réellement fermée par le réseau.
+
+FRESH V0.13 — DÉCLENCHEMENTS DE FIN DE POINT (SERVEUR AUTORITAIRE)
+
+Les 4 déclenchements sont maintenant calculés par le serveur :
+1. Objectif rempli après une réponse.
+2. Déplacement arrivé à 0 après paiement d'un déplacement.
+3. Déplacement impossible à payer (aucune combinaison mouvement/énergie).
+4. Aucune réponse légale disponible après le déplacement
+   (couleur interdite + règle de couleur + énergie prises en compte).
+
+Le serveur annonce la fin aux deux écrans. Tous les popups de décision sont fermés
+et le popup "Fin du point" apparaît sur les deux appareils.
+
+IMPORTANT POUR CE TEST :
+- le bouton Valider du popup de fin est volontairement neutralisé côté réseau ;
+- il ferme seulement le popup et NE lance PAS encore score/nouveau point localement ;
+- la prochaine couche sera score + nouveaux objectifs + reset + alternance du serveur.
+
+FRESH V0.14 — CORRECTION CIBLE DE DÉPLACEMENT J2
+Bug corrigé :
+- le serveur vérifiait encore la cible de J2 par rapport à lastServiceValue ;
+- cela fonctionnait uniquement au premier déplacement après le service ;
+- dès le deuxième échange, la bonne référence est lastPlayedValue.
+
+Correction :
+- freshTopMoveAction valide maintenant targetValue contre st.lastPlayedValue.
+- Le premier déplacement reste valide car service initial => lastPlayedValue = lastServiceValue.
+- Les déplacements suivants suivent désormais correctement la dernière balle jouée.
+
+FRESH V0.15 — CORRECTION "CONTINUER SANS DÉPLACEMENT"
+
+Cause exacte :
+- le bouton zéro-distance est un bouton persistant réutilisé d'un échange à l'autre ;
+- lors de son premier envoi réseau, il était mis disabled=true pour éviter un double clic ;
+- contrairement aux boutons de répartition, il n'est pas recréé à chaque popup ;
+- au deuxième ou troisième cas distance 0, il restait donc désactivé et aucun clic ne partait au serveur.
+
+Correction :
+- zeroMoveTopContinue est réactivé à chaque ouverture du popup J2 ;
+- zeroMoveBottomContinue est réactivé à chaque ouverture du popup J1.
+
+FRESH V0.16 — SCORE + NOUVEAU POINT + ALTERNANCE DU SERVICE
+
+Après une fin de point et validation :
+- le serveur attribue 1 point au gagnant, une seule fois ;
+- le meeple de score correspondant avance sur les deux écrans ;
+- les 6 piles sont remélangées côté serveur ;
+- deux nouveaux objectifs sont tirés dans la pioche restante ;
+- énergie et déplacement reviennent à 7 ;
+- les deux raquettes reviennent à leur position initiale ;
+- les tuiles jouées disparaissent ;
+- le jeton interdiction revient en position neutre ;
+- le joueur qui sert change à chaque point.
+
+Ordre prévu :
+Point 1 : J1 sert
+Point 2 : J2 sert
+Point 3 : J1 sert
+etc.
+
+Le service de J2 est maintenant lui aussi autoritaire côté serveur.
+Si un joueur atteint 4 points, la partie s'arrête et le popup de victoire apparaît.
+
+FRESH V0.24 — SERVICE PAR RÔLE
+
+Reconstruction depuis V0.16, sans la branche spéciale topService.
+
+- Après un point, les deux écrans reviennent visuellement au même état que le début de partie.
+- Les tuiles restent visibles et non grisées chez les deux joueurs.
+- pointServerSide désigne qui est le "J1 du point".
+- Le même gestionnaire de clic et le même popup servent pour J1 ou J2.
+- Le joueur non serveur reste simplement passif ; aucun changement d'apparence.
+- Le serveur utilise une phase unique `service` quel que soit le joueur qui sert.
+
+
+V0.25 : choix Humain/Bot. BOT occupe J2/top. Premier objectif: tester un point complet. Les deux objectifs sont visibles au bot. Journal des décisions affiché.
+V0.26 : journal du BOT déplacé en haut à gauche. Aucune logique de jeu ou de bot modifiée.
+
+V0.27 : esthétique uniquement. Table collée au bandeau des tuiles ; pistes haute/basse collées aux tuiles ; scoring collé à droite du bloc tuiles. Aucune logique de jeu, réseau ou BOT modifiée.
+
+V0.28 — correction esthétique ciblée :
+- piste de déplacement/énergie du haut remise exactement à la largeur du bloc tuiles ;
+- même largeur forcée pour la piste du bas ;
+- suppression du débordement causé par l'ancienne règle #resourceTop/#resourceBottom en 177 px ;
+- coordonnées des meeples de déplacement conservées sur MOVEMENT_X ;
+- coordonnées verticales déplacement/énergie verrouillées ;
+- orientations J1/J2 conservées ;
+- aucune logique de jeu, serveur ou BOT modifiée.
+
+V0.29 : image de ping-pong validée intégrée comme fond de toute la fenêtre avec opacité 42 %. Aucune image générée lors de cette modification. Aucune logique de jeu, BOT, réseau, pistes ou meeples modifiée.
+
+V0.30 — esthétique :
+- suppression du texte littéral "\n" visible en haut à gauche ;
+- fond ping-pong réellement visible, ancré à gauche et redimensionné sur la fenêtre ;
+- détourage des blocs tuiles, pistes déplacement/énergie et scoring :
+  seuls les blancs reliés au bord des images sont rendus transparents,
+  afin de conserver les blancs internes utiles aux illustrations ;
+- aucune logique de jeu, réseau ou BOT modifiée.
+
+V0.31 — esthétique uniquement :
+- ajout du titre PING! en haut à droite ;
+- titre centré dynamiquement entre le bord droit du plateau et le bord droit de la fenêtre ;
+- typographie sportive condensée, grasse et italique, sans image générée ;
+- aucune logique de jeu, BOT ou réseau modifiée.

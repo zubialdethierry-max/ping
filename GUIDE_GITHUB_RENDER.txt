@@ -1,0 +1,29 @@
+PING! V0.33 — GITHUB + RENDER
+
+OBJECTIF
+Mettre exactement le jeu que nous venons de valider en ligne,
+sans changer le moteur de jeu.
+
+ÉTAPE 1 — GITHUB
+1. Crée un dépôt GitHub.
+2. Nom conseillé : ping-online
+3. Dépose tout le contenu de ce dossier à la racine du dépôt.
+4. Valide le commit.
+
+ÉTAPE 2 — RENDER
+1. Connecte Render à GitHub.
+2. Crée un Web Service depuis le dépôt ping-online.
+3. Build Command : npm install
+4. Start Command : npm start
+5. Lance le déploiement.
+
+ÉTAPE 3 — TEST
+1. Ouvre l'URL publique Render sur ton ordinateur.
+2. Crée une partie.
+3. Depuis un autre appareil/réseau, ouvre la même URL.
+4. Rejoins avec le code à 4 chiffres.
+
+À NE PAS FAIRE
+- Ne lance pas le .bat sur Render.
+- Ne mets pas node_modules sur GitHub.
+- Ne change pas le port en dur : Render fournit automatiquement PORT.
