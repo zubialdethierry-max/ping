@@ -1246,12 +1246,43 @@ body.fresh-seat-joiner #sideStack .resourceTopWrap{
   }
 </style>
 
+
+<style id="v0342JournalScrollFix">
+  /* V0.34.2 — le journal reste dans son encart et défile à l'intérieur */
+  #freshBotJournal{
+    display:flex !important;
+    flex-direction:column !important;
+    max-height:260px !important;
+    height:260px !important;
+    overflow:hidden !important;
+    box-sizing:border-box !important;
+  }
+
+  /* La zone de contenu du journal prend l'espace restant et devient scrollable. */
+  #freshBotJournal .freshJournalScroll,
+  #freshBotJournalBody{
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    overscroll-behavior:contain !important;
+    scrollbar-gutter:stable !important;
+    padding-right:4px !important;
+  }
+
+  /* Le bouton d'export reste visible en bas du bandeau. */
+  #freshExportCsv{
+    flex:0 0 auto !important;
+    margin-top:6px !important;
+  }
+</style>
+
 </head>
 <body>
 
 <div id="freshLanLobby">
   <div id="freshLanCard">
-    <h1>PING! — Réseau — V0.34.1</h1>
+    <h1>PING! — Réseau — V0.34.2</h1>
     <input id="freshName" placeholder="Prénom">
 <div style="font-size:13px;line-height:1.35;opacity:.85;margin-bottom:8px">Le créateur obtient un code de salle. Le second joueur choisit « Rejoindre une partie » et saisit ce code.</div>
     <div>
@@ -3594,7 +3625,7 @@ window.addEventListener('load',()=>{
     }
   }
 
-  socket.on('connect',()=>{ badge.textContent='V0.34.1 — serveur connecté'; });
+  socket.on('connect',()=>{ badge.textContent='V0.34.2 — serveur connecté'; });
   socket.on('roomCreated',enter);
   socket.on('roomJoined',enter);
   socket.on('roomReady',payload=>{

@@ -1,0 +1,10 @@
+PING! V0.34.2
+
+Correctif d'interface :
+- le journal d'historique reste à l'intérieur de son encart ;
+- hauteur du journal limitée ;
+- défilement vertical interne ;
+- le bouton Exporter CSV reste accessible ;
+- aucune modification des règles ou du comportement des BOTs.
+
+Cette correction évite que l'historique descende sur la zone de choix de valeur des tuiles.
