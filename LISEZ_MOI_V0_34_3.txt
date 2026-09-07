@@ -1,3 +1,5 @@
 PING! V0.34.3
-
-Correctif interface : largeur du journal réduite de 30 %. Défilement interne conservé. Jeu et BOTs inchangés.
+Repart de la V0.34.2 fonctionnelle.
+Journal de partie : min(520px,46vw) -> min(364px,32.2vw), soit -30 %.
+Journal des décisions BOT inchangé.
+Défilement interne conservé. Jeu et BOTs inchangés.
