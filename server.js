@@ -10,7 +10,7 @@ app.use(express.static(__dirname));
 
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
 app.get('/health',(req,res)=>{
-  res.status(200).json({ok:true,game:'PING!',version:'0.34.2',rooms:rooms ? rooms.size : 0});
+  res.status(200).json({ok:true,game:'PING!',version:'0.34.3',rooms:rooms ? rooms.size : 0});
 });
 
 const rooms=new Map();
@@ -988,7 +988,7 @@ io.on('connection',socket=>{
 */
 const PORT=Number(process.env.PORT)||3000;
 httpServer.listen(PORT,'0.0.0.0',()=>{
-  console.log('PING! — V0.34.2 GitHub + Render + BOTs');
+  console.log('PING! — V0.34.3 GitHub + Render + BOTs');
   console.log('-----------------------------------');
   console.log(`Port d'écoute : ${PORT}`);
 

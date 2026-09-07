@@ -1277,12 +1277,19 @@ body.fresh-seat-joiner #sideStack .resourceTopWrap{
   }
 </style>
 
+
+<style id="v0343JournalWidthFix">
+#freshBotJournal{
+  width:70% !important;
+  box-sizing:border-box !important;
+}
+</style>
 </head>
 <body>
 
 <div id="freshLanLobby">
   <div id="freshLanCard">
-    <h1>PING! — Réseau — V0.34.2</h1>
+    <h1>PING! — Réseau — V0.34.3</h1>
     <input id="freshName" placeholder="Prénom">
 <div style="font-size:13px;line-height:1.35;opacity:.85;margin-bottom:8px">Le créateur obtient un code de salle. Le second joueur choisit « Rejoindre une partie » et saisit ce code.</div>
     <div>
@@ -3625,7 +3632,7 @@ window.addEventListener('load',()=>{
     }
   }
 
-  socket.on('connect',()=>{ badge.textContent='V0.34.2 — serveur connecté'; });
+  socket.on('connect',()=>{ badge.textContent='V0.34.3 — serveur connecté'; });
   socket.on('roomCreated',enter);
   socket.on('roomJoined',enter);
   socket.on('roomReady',payload=>{

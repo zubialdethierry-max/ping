@@ -1,0 +1,3 @@
+PING! V0.34.3
+
+Correctif interface : largeur du journal réduite de 30 %. Défilement interne conservé. Jeu et BOTs inchangés.

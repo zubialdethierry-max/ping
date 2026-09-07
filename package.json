@@ -1,6 +1,6 @@
 {
   "name": "ping-online",
-  "version": "0.34.2",
+  "version": "0.34.3",
   "private": true,
   "description": "PING! - réseau Internet + BOT facile + BOT intermédiaire V2 + journal enrichi",
   "scripts": {
