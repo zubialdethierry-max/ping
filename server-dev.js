@@ -3,7 +3,7 @@ const path=require('path');
 let s=fs.readFileSync(path.join(__dirname,'server.js'),'utf8');
 function rep(a,b){if(!s.includes(a))throw new Error('Patch V0.38 introuvable: '+a.slice(0,70));s=s.replace(a,b);}
 rep("const os=require('os');","const os=require('os');\nconst fs=require('fs');\nconst path=require('path');");
-rep("app.use(express.static(__dirname));","app.get('/',(req,res)=>{ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8'); res.type('html').send(html.replace('</body>','<script src=\"/character-dev.js\"></script></body>')); });\napp.use(express.static(__dirname));");
+rep("app.use(express.static(__dirname));","app.get('/',(req,res)=>{ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8'); res.type('html').send(html.replace('</body>','<script src=\"/character-dev.js\"></script><script src=\"/mathieu-exhaustion-dev.js\"></script></body>')); });\napp.use(express.static(__dirname));");
 rep("version:'0.34.3'","version:'0.38.0'");
 rep("function shortestDistance(from,to){\n  if(String(from)===String(to)) return 0;","function shortestDistance(from,to){\n  if(String(from)===String(to)) return 0;\n  if ((String(from)==='5' && String(to)==='6') || (String(from)==='6' && String(to)==='5')) return 2;");
 rep("pointServerSide:'bottom'\n  };","pointServerSide:'bottom',\n    characters:{top:'mathieu',bottom:'mathieu'},\n    characterPowers:{top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}},bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}}},\n    mathieuExhaustion:{top:null,bottom:null}\n  };");
