@@ -1,10 +1,10 @@
 {
   "name": "ping-online",
-  "version": "0.40.2",
+  "version": "0.40.3",
   "private": true,
   "description": "PING! - branche personnages-dev - Jeanne pouvoir 1",
   "scripts": {
-    "start": "node -e \"const fs=require('fs');const p='server-dev.js';let s=fs.readFileSync(p,'utf8');s=require('./fix-v0401-dev')(s);fs.writeFileSync('/tmp/ping-server-dev.js',s);require('/tmp/ping-server-dev.js')\""
+    "start": "node -e \"const fs=require('fs'),path=require('path'),Module=require('module');const src=path.resolve('server-dev.js'),out=path.resolve('server-dev-runtime.js');let s=fs.readFileSync(src,'utf8');s=require('./fix-v0401-dev')(s);fs.writeFileSync(out,s);require(out)\""
   },
   "engines": {
     "node": ">=20"
