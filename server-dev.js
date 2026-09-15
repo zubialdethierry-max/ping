@@ -1,10 +1,10 @@
 const fs=require('fs');
 const path=require('path');
 let s=fs.readFileSync(path.join(__dirname,'server.js'),'utf8');
-function rep(a,b){if(!s.includes(a))throw new Error('Patch V0.39.3 introuvable: '+a.slice(0,70));s=s.replace(a,b);}
+function rep(a,b){if(!s.includes(a))throw new Error('Patch V0.39.4 introuvable: '+a.slice(0,70));s=s.replace(a,b);}
 rep("const os=require('os');","const os=require('os');\nconst fs=require('fs');\nconst path=require('path');\nconst installCharacterSelection=require('./server-personnages-dev');");
-rep("app.use(express.static(__dirname));","app.get('/',(req,res)=>{ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8'); res.type('html').send(html.replace('</body>','<script src=\"/character-dev.js\"></script><script src=\"/mathieu-exhaustion-dev.js\"></script><script src=\"/character-select-dev.js\"></script></body>')); });\napp.use(express.static(__dirname));");
-rep("version:'0.34.3'","version:'0.39.3'");
+rep("app.use(express.static(__dirname));","app.get('/',(req,res)=>{ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8'); res.type('html').send(html.replace('</body>','<script src=\"/character-dev.js\"></script><script src=\"/mathieu-exhaustion-dev.js\"></script><script src=\"/character-select-dev.js\"></script><script src=\"/jeanne-dev.js\"></script></body>')); });\napp.use(express.static(__dirname));");
+rep("version:'0.34.3'","version:'0.39.4'");
 rep("function shortestDistance(from,to){\n  if(String(from)===String(to)) return 0;","function shortestDistance(from,to){\n  if(String(from)===String(to)) return 0;\n  if ((String(from)==='5' && String(to)==='6') || (String(from)==='6' && String(to)==='5')) return 2;");
 rep("pointServerSide:'bottom'\n  };","pointServerSide:'bottom',\n    characters:{top:null,bottom:null},\n    characterPowers:{top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}},bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}}},\n    mathieuExhaustion:{top:null,bottom:null}\n  };");
 rep("function botResponse(room,r){","function mathieuOpponentResponded(st,side){const owner=side==='top'?'bottom':'top',x=st.mathieuExhaustion&&st.mathieuExhaustion[owner];if(x&&x.stage==='waitOpponent')x.stage='waitOwner';}\nfunction mathieuOwnerResponded(room,r,side){const st=r.state,x=st.mathieuExhaustion&&st.mathieuExhaustion[side];if(!x)return false;if(x.stage==='first'){x.stage='waitOpponent';return false;}if(x.stage==='waitOwner'){x.stage='roll';x.resume=side==='bottom'?'topMove':'bottomMove';st.phase='mathieuExhaustion';io.to(room).emit('freshMathieuExhaustionPending',{state:st,side});return true;}return false;}\nfunction botResponse(room,r){");
@@ -23,5 +23,5 @@ rep("    st.blockedColor=pile.color;\n\n    const action={\n      type:'topRespo
 rep("    io.to(room).emit('freshTopResponseApplied',{state:st,action});\n    if(endSpec){","    if(!endSpec)mathieuOwnerResponded(room,r,'top');io.to(room).emit('freshTopResponseApplied',{state:st,action});\n    if(endSpec){");
 rep("    st.blockedColor=pile.color;\n\n    const action={\n      type:'bottomResponse'","    st.blockedColor=pile.color;mathieuOpponentResponded(st,'bottom');\n\n    const action={\n      type:'bottomResponse'");
 rep("    io.to(room).emit('freshBottomResponseApplied',{state:st,action});\n    scheduleBot(room,r);","    const exhaustionHold=!endSpec&&mathieuOwnerResponded(room,r,'bottom');io.to(room).emit('freshBottomResponseApplied',{state:st,action});\n    if(!exhaustionHold)scheduleBot(room,r);");
-rep("PING! — V0.34.3 GitHub + Render + BOTs","PING! — V0.39.3 selection personnages — branche personnages-dev");
+rep("PING! — V0.34.3 GitHub + Render + BOTs","PING! — V0.39.4 affichage Jeanne — branche personnages-dev");
 const out=path.join(__dirname,'_server_v035_runtime.js');fs.writeFileSync(out,s);require(out);
