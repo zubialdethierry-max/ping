@@ -1,10 +1,10 @@
 {
   "name": "ping-online",
-  "version": "0.34.3",
+  "version": "0.35.0",
   "private": true,
-  "description": "PING! - réseau Internet + BOT facile + BOT intermédiaire V2 + journal enrichi",
+  "description": "PING! - branche personnages-dev - Mathieu pouvoir 1",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server-dev.js"
   },
   "engines": {
     "node": ">=20"
