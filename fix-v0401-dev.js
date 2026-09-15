@@ -5,17 +5,25 @@ module.exports=function fixV0401(s){
   if(!s.includes(bad1)||!s.includes(bad2))throw new Error('Correctif V0.40.2: ancres inattendues');
   s=s.replace(bad1,good1).replace(bad2,'');
 
-  // V0.40.6 — Jeanne P2 : modification de valeur +/-1 ou +/-2 gratuite.
-  // On étend volontairement le patch source de server-dev sans toucher au server.js stable.
-  s=s.replaceAll("jeanne_pm1:{used:false,active:false}","jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false}");
-  s=s.replace("if(power!=='jeanne_pm1')return socket.emit('roomError','Pouvoir inconnu.');","if(!['jeanne_pm1','jeanne_pm2'].includes(power))return socket.emit('roomError','Pouvoir inconnu.');");
-  s=s.replace("const p=st.characterPowers?.[side]?.jeanne_pm1;if(!p||p.used)return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');p.used=true;p.active=true;","const p=st.characterPowers?.[side]?.[power];if(!p||p.used)return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');if(power==='jeanne_pm2'&&!st.characterPowers?.[side]?.jeanne_pm1?.used)return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');p.used=true;p.active=true;");
-
-  s=s.replaceAll("const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1;\\n    const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1,jp2=st.characterPowers?.[serviceSide]?.jeanne_pm2;\\n    const jd=Math.abs(printedValue-finalValue),jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
-  s=s.replaceAll("pile.cards.shift();if(jp?.active)jp.active=false;","pile.cards.shift();if(jp?.active)jp.active=false;if(jp2?.active)jp2.active=false;");
-
-  s=s.replace("const jp=st.characterPowers?.top?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.top?.jeanne_pm1,jp2=st.characterPowers?.top?.jeanne_pm2;const jd=Math.abs(printedValue-finalValue),jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
-  s=s.replace("const jp=st.characterPowers?.bottom?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.bottom?.jeanne_pm1,jp2=st.characterPowers?.bottom?.jeanne_pm2;const jd=Math.abs(printedValue-finalValue),jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
-
+  /*
+   * V0.40.14 — Jeanne P2.
+   * Important : server-dev.js est lui-même un générateur de server.js.
+   * Les versions précédentes modifiaient certaines chaînes du générateur de façon
+   * fragile. Ici on injecte les changements DANS le runtime généré, juste avant
+   * fs.writeFileSync(out,s). P2 suit donc exactement les mêmes structures que P1.
+   */
+  const marker="const out=path.join(__dirname,'_server_v035_runtime.js');fs.writeFileSync(out,s);require(out);";
+  if(!s.includes(marker))throw new Error('V0.40.14: marqueur runtime introuvable');
+  const runtimePatch=`
+// Jeanne P2 : clone structurel de P1, portée +/-2.
+s=s.replaceAll("jeanne_pm1:{used:false,active:false}","jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false}");
+s=s.replace("if(power!=='jeanne_pm1')return socket.emit('roomError','Pouvoir inconnu.');","if(!['jeanne_pm1','jeanne_pm2'].includes(power))return socket.emit('roomError','Pouvoir inconnu.');");
+s=s.replace("const p=st.characterPowers?.[side]?.jeanne_pm1;if(!p||p.used)return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');p.used=true;p.active=true;","const p=st.characterPowers?.[side]?.[power];if(!p||p.used)return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');if(power==='jeanne_pm2'&&!st.characterPowers?.[side]?.jeanne_pm1?.used)return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');p.used=true;p.active=true;");
+s=s.replaceAll("const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1;\\n    const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1,jp2=st.characterPowers?.[serviceSide]?.jeanne_pm2;\\n    const jd=Math.abs(printedValue-finalValue);\\n    const jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
+s=s.replaceAll("pile.cards.shift();if(jp?.active)jp.active=false;","pile.cards.shift();if(jp?.active)jp.active=false;if(jp2?.active)jp2.active=false;");
+s=s.replace("const jp=st.characterPowers?.top?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.top?.jeanne_pm1,jp2=st.characterPowers?.top?.jeanne_pm2;const jd=Math.abs(printedValue-finalValue);const jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
+s=s.replace("const jp=st.characterPowers?.bottom?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);","const jp=st.characterPowers?.bottom?.jeanne_pm1,jp2=st.characterPowers?.bottom?.jeanne_pm2;const jd=Math.abs(printedValue-finalValue);const jeanneFree=!!((jp2?.active&&jd>=1&&jd<=2)||(jp?.active&&jd===1));");
+`;
+  s=s.replace(marker,runtimePatch+'\n'+marker);
   return s;
 };
