@@ -7,5 +7,14 @@ document.querySelectorAll('.ccPick').forEach(x=>x.onclick=()=>{choice=x.dataset.
 document.getElementById('characterChoiceOk').onclick=()=>{if(choice)net()?.socket.emit('freshChooseCharacter',{room:net().room,character:choice});};
 }
 function sync(st){if(!st)return;const side=net()?.seat==='joiner'?'top':'bottom';/* Certains événements transportent un state partiel sans characters. Ils ne doivent jamais réouvrir l'écran de sélection. */if(!st.characters||!Object.prototype.hasOwnProperty.call(st.characters,side))return;const c=st.characters[side];document.body.dataset.pingCharacter=c||'';const box=document.getElementById('characterChoice');if(c)box?.classList.remove('open');else if(document.body.classList.contains('fresh-game-ready'))box?.classList.add('open');const mc=document.getElementById('mathieuCards');if(mc)mc.style.setProperty('display',c==='mathieu'?'block':'none','important');}
-window.addEventListener('load',()=>{init();const s=net()?.socket;if(s){if(typeof s.onAny==='function')s.onAny((e,p)=>{if(p?.state)sync(p.state)});s.on('freshCharacterChosen',p=>sync(p?.state));}new MutationObserver(()=>{if(document.body.classList.contains('fresh-game-ready')&&!document.body.dataset.pingCharacter)document.getElementById('characterChoice')?.classList.add('open')}).observe(document.body,{attributes:true,attributeFilter:['class']});});
+window.addEventListener('load',()=>{
+  /* Le plateau définit 5 <-> 6 comme une distance spéciale de 2. Le serveur applique déjà cette règle : on aligne ici le calcul client utilisé par le popup de déplacement. */
+  if(typeof window.shortestDistance==='function'){
+    const baseShortestDistance=window.shortestDistance;
+    window.shortestDistance=function(from,to){
+      if((String(from)==='5'&&String(to)==='6')||(String(from)==='6'&&String(to)==='5'))return 2;
+      return baseShortestDistance(from,to);
+    };
+  }
+  init();const s=net()?.socket;if(s){if(typeof s.onAny==='function')s.onAny((e,p)=>{if(p?.state)sync(p.state)});s.on('freshCharacterChosen',p=>sync(p?.state));}new MutationObserver(()=>{if(document.body.classList.contains('fresh-game-ready')&&!document.body.dataset.pingCharacter)document.getElementById('characterChoice')?.classList.add('open')}).observe(document.body,{attributes:true,attributeFilter:['class']});});
 })();
