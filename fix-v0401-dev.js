@@ -16,6 +16,15 @@ s=s.replaceAll("const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1;\\n    co
 s=s.replaceAll("pile.cards.shift();if(jp?.active)jp.active=false;","pile.cards.shift();if(jp?.active)jp.active=false;if(jp2?.active)jp2.active=false;if(jp3?.active)jp3.active=false;");
 s=s.replace("const jp=st.characterPowers?.top?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);\\n    const cost=jeanneFree?0:Math.abs(printedValue-finalValue);","const jp=st.characterPowers?.top?.jeanne_pm1,jp2=st.characterPowers?.top?.jeanne_pm2,jp3=st.characterPowers?.top?.jeanne_free_value;const jd=Math.abs(printedValue-finalValue);\\n    const cost=jp3?.active?0:(jp2?.active?Math.max(0,jd-2):(jp?.active?Math.max(0,jd-1):jd));");
 s=s.replace("const jp=st.characterPowers?.bottom?.jeanne_pm1;const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);\\n    const cost=jeanneFree?0:Math.abs(printedValue-finalValue);","const jp=st.characterPowers?.bottom?.jeanne_pm1,jp2=st.characterPowers?.bottom?.jeanne_pm2,jp3=st.characterPowers?.bottom?.jeanne_free_value;const jd=Math.abs(printedValue-finalValue);\\n    const cost=jp3?.active?0:(jp2?.active?Math.max(0,jd-2):(jp?.active?Math.max(0,jd-1):jd));");
+
+// Jeanne P4, étapes 1 à 5 : copie de la machine d'état de Mathieu, sans résolution du D6 à ce stade.
+s=s.replace("mathieuExhaustion:{top:null,bottom:null}","mathieuExhaustion:{top:null,bottom:null},jeanneExhaustion:{top:null,bottom:null}");
+s=s.replace("p.used=true;p.active=true;io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});","p.used=true;p.active=true;if(power==='jeanne_free_value')st.jeanneExhaustion[side]={stage:'first'};io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});");
+s=s.replace("function mathieuOpponentResponded(st,side){","function jeanneOpponentResponded(st,side){const owner=side==='top'?'bottom':'top',x=st.jeanneExhaustion&&st.jeanneExhaustion[owner];if(x&&x.stage==='waitOpponent')x.stage='waitOwner';}\\nfunction jeanneOwnerResponded(room,r,side){const st=r.state,x=st.jeanneExhaustion&&st.jeanneExhaustion[side];if(!x)return false;if(x.stage==='first'){x.stage='waitOpponent';return false;}if(x.stage==='waitOwner'){x.stage='roll';x.resume=side==='bottom'?'topMove':'bottomMove';st.phase='jeanneExhaustion';io.to(room).emit('freshJeanneExhaustionPending',{state:st,side});return true;}return false;}\\nfunction mathieuOpponentResponded(st,side){");
+s=s.replaceAll("mathieuOpponentResponded(st,'top');","mathieuOpponentResponded(st,'top');jeanneOpponentResponded(st,'top');");
+s=s.replaceAll("mathieuOpponentResponded(st,'bottom');","mathieuOpponentResponded(st,'bottom');jeanneOpponentResponded(st,'bottom');");
+s=s.replace("if(!endSpec)mathieuOwnerResponded(room,r,'top');","if(!endSpec){mathieuOwnerResponded(room,r,'top');jeanneOwnerResponded(room,r,'top');}");
+s=s.replace("const exhaustionHold=!endSpec&&mathieuOwnerResponded(room,r,'bottom');","const exhaustionHold=!endSpec&&(mathieuOwnerResponded(room,r,'bottom')||jeanneOwnerResponded(room,r,'bottom'));");
 `;
   s=s.replace(marker,runtimePatch+'\n'+marker);
   return s;
