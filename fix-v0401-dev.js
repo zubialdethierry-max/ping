@@ -4,6 +4,7 @@ module.exports=function fixV0401(s){
   const bad2="rep(\"    const distance=st.characterPowers?.top?.mathieu_free_move?.active?0:(st.characterPowers?.top?.mathieu_reduce1?.active?Math.max(0,rawDistance-1):rawDistance);\",\"    const distance=st.characterPowers?.top?.mathieu_free_move?.active?0:(st.characterPowers?.top?.mathieu_reduce1?.active?Math.max(0,rawDistance-1):rawDistance);\");";
   if(!s.includes(bad1)||!s.includes(bad2))throw new Error('Correctif V0.40.2: ancres inattendues');
   s=s.replace(bad1,good1).replace(bad2,'');
+  s=s.replace("installCharacterSelection(socket,{io,rooms});","installCharacterSelection(socket,{io,rooms,scheduleBot});");
 
   const marker="const out=path.join(__dirname,'_server_v035_runtime.js');fs.writeFileSync(out,s);require(out);";
   if(!s.includes(marker))throw new Error('V0.40.18: marqueur runtime introuvable');
