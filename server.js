@@ -14,6 +14,8 @@ app.get('/health',(req,res)=>{
 });
 
 const rooms=new Map();
+const characterState=require('./character-state-dev');
+const installCharacterSelection=require('./server-personnages-dev');
 
 function shuffle(a){
   a=[...a];
@@ -598,8 +600,11 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
 }
 
 io.on('connection',socket=>{
-  socket.on('createRoom',({name,opponentType})=>{
+  installCharacterSelection(socket,{io,rooms,scheduleBot});
+  socket.on('createRoom',({name,opponentType,characterMode})=>{
     const room=makeCode(), state=makeInitialState();
+    state.characterMode=characterMode==='on'?'on':'off';
+    state.characters=characterState.createCharacters();
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
