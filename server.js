@@ -321,9 +321,26 @@ function botVisiblePiles(st){
  }));
 }
 function botAnalysis(room,kind,st,data,difficulty='easy'){
+ const nextCharacterPower=botNextPower(st);
+ const powerConsidered=data?.powerConsidered||null;
+ const selectedPower=data?.characterPower||null;
+ const normalScore=Number.isFinite(data?.normalScore)?data.normalScore:null;
+ const powerScore=Number.isFinite(data?.powerScore)?data.powerScore:null;
+ let powerDecision='NON APPLICABLE';
+ if(!botCharactersEnabled(st)) powerDecision='PERSONNAGE/POUVOIRS NON ACTIFS';
+ else if(selectedPower) powerDecision=data?.powerForced?'UTILISÉ — seul coup possible':'UTILISÉ';
+ else if(powerConsidered) powerDecision='CONSERVÉ';
+ else if(!nextCharacterPower) powerDecision='AUCUN POUVOIR RESTANT';
  io.to(room).emit('freshBotAnalysis',{
   kind,difficulty,
   at:new Date().toISOString(),
+  botCharacter:st?.characters?.top||null,
+  nextCharacterPower,
+  powerConsidered,
+  selectedPower,
+  normalScore,
+  powerScore,
+  powerDecision,
   state:{
    phase:st.phase,pointServerSide:st.pointServerSide,
    botEnergy:st.opponentEnergy,botMovement:st.opponentMovement,
@@ -755,7 +772,7 @@ function botService(room,r){
  const pick=botChooseJeanneShot(st,true,r.botDifficulty),c=pick.choice;if(!c)return;
  botPowerDiagnostic(room,st,'service',pick);
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au service. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
- const z=pick.normal;botAnalysis(room,'service',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
+ const z=pick.normal;botAnalysis(room,'service',st,{chosen:c,options:z.options||[],characterPower:pick.power||null,powerConsidered:pick.powerConsidered||null,normalScore:pick.normalScore,powerScore:pick.powerScore,powerForced:!!pick.forced},r.botDifficulty);
  const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
  if(st.characterPowers?.top?.jeanne_pm1)st.characterPowers.top.jeanne_pm1.active=false;
  if(st.characterPowers?.top?.jeanne_pm2)st.characterPowers.top.jeanne_pm2.active=false;
@@ -771,7 +788,7 @@ function botMove(room,r){
  botPowerDiagnostic(room,st,'déplacement',pick);
  if(!m){markPointEnded(room,r,'bottom','impossibleMovement','Le BOT ne peut pas payer le déplacement requis.');return;}
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au déplacement : distance brute ${m.rawDistance??m.distance}, coût retenu ${m.moveSpend} D + ${m.energySpend} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
- botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:pick.normal?.options||[],characterPower:pick.power||null},r.botDifficulty);
+ botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:pick.normal?.options||[],characterPower:pick.power||null,powerConsidered:pick.powerConsidered||null,normalScore:pick.normalScore,powerScore:pick.powerScore,powerForced:!!pick.forced},r.botDifficulty);
  st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=+st.lastPlayedValue;
  if(st.characterPowers?.top?.mathieu_energy_only)st.characterPowers.top.mathieu_energy_only.active=false;
  if(st.characterPowers?.top?.mathieu_reduce1)st.characterPowers.top.mathieu_reduce1.active=false;
@@ -828,7 +845,7 @@ function botResponse(room,r){
  botPowerDiagnostic(room,st,'réponse',pick);
  if(!c){markPointEnded(room,r,'bottom','noLegalResponse','Le BOT n’a aucune réponse légale.');return;}
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé à la réponse : ${c.printedValue} → ${c.finalValue}, coût ${c.cost} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
- const z=pick.normal;botAnalysis(room,'response',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
+ const z=pick.normal;botAnalysis(room,'response',st,{chosen:c,options:z.options||[],characterPower:pick.power||null,powerConsidered:pick.powerConsidered||null,normalScore:pick.normalScore,powerScore:pick.powerScore,powerForced:!!pick.forced},r.botDifficulty);
  const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;
  if(st.characterPowers?.top?.jeanne_pm1)st.characterPowers.top.jeanne_pm1.active=false;
  if(st.characterPowers?.top?.jeanne_pm2)st.characterPowers.top.jeanne_pm2.active=false;
