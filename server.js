@@ -718,6 +718,22 @@ function botActivatePower(st,power){
 function botPowerLabel(power){
  return ({mathieu_energy_only:'Mathieu P1',mathieu_reduce1:'Mathieu P2',mathieu_free_move:'Mathieu P3',jeanne_pm1:'Jeanne P1',jeanne_pm2:'Jeanne P2',jeanne_free_value:'Jeanne P3'})[power]||power;
 }
+function botPowerDiagnostic(room,st,kind,pick){
+ const character=st?.characters?.top||'AUCUN';
+ const next=botNextPower(st);
+ const considered=pick?.powerConsidered||null;
+ const chosen=pick?.power||null;
+ const normal=Number.isFinite(pick?.normalScore)?pick.normalScore.toFixed(1):(pick?.normalScore===-Infinity?'aucun coup':'n/a');
+ const powered=Number.isFinite(pick?.powerScore)?pick.powerScore.toFixed(1):'n/a';
+ const reserve=considered?botPowerReserve(st,considered).toFixed(1):'n/a';
+ let reason;
+ if(!botCharactersEnabled(st)) reason='PERSONNAGE/POUVOIRS NON ACTIFS';
+ else if(chosen) reason=pick?.forced?'UTILISÉ — seul coup possible':'UTILISÉ — gain suffisant';
+ else if(considered) reason='CONSERVÉ — gain insuffisant';
+ else if(!next) reason='AUCUN POUVOIR RESTANT';
+ else reason='NON APPLICABLE À CETTE PHASE';
+ botLog(room,`BOT DIAG [${kind}] — personnage=${character} ; prochain=${next?botPowerLabel(next):'aucun'} ; évalué=${considered?botPowerLabel(considered):'non'} ; normal=${normal} ; pouvoir=${powered} ; réserve=${reserve} ; décision=${reason}.`);
+}
 function botResolveExhaustion(room,r,kind){
  const st=r.state,x=kind==='mathieu'?st.mathieuExhaustion?.top:st.jeanneExhaustion?.top;
  const phase=kind==='mathieu'?'mathieuExhaustion':'jeanneExhaustion';
@@ -737,6 +753,7 @@ function botResolveExhaustion(room,r,kind){
 function botService(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.serviceDone||st.pointServerSide!=='top'||st.phase!=='service')return;
  const pick=botChooseJeanneShot(st,true,r.botDifficulty),c=pick.choice;if(!c)return;
+ botPowerDiagnostic(room,st,'service',pick);
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au service. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
  const z=pick.normal;botAnalysis(room,'service',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
  const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
@@ -751,6 +768,7 @@ function botService(room,r){
 function botMove(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;
  const pick=botChooseMathieuMove(st,+st.lastPlayedValue,r.botDifficulty),m=pick.choice;
+ botPowerDiagnostic(room,st,'déplacement',pick);
  if(!m){markPointEnded(room,r,'bottom','impossibleMovement','Le BOT ne peut pas payer le déplacement requis.');return;}
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au déplacement : distance brute ${m.rawDistance??m.distance}, coût retenu ${m.moveSpend} D + ${m.energySpend} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
  botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:pick.normal?.options||[],characterPower:pick.power||null},r.botDifficulty);
@@ -807,6 +825,7 @@ function mathieuOwnerResponded(room,r,side){
 function botResponse(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topResponse')return;
  const before=botProgress(st,'top'),pick=botChooseJeanneShot(st,false,r.botDifficulty),c=pick.choice;
+ botPowerDiagnostic(room,st,'réponse',pick);
  if(!c){markPointEnded(room,r,'bottom','noLegalResponse','Le BOT n’a aucune réponse légale.');return;}
  if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé à la réponse : ${c.printedValue} → ${c.finalValue}, coût ${c.cost} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
  const z=pick.normal;botAnalysis(room,'response',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
