@@ -80,6 +80,8 @@ const MOVE_GRAPH = {
 
 function shortestDistance(from,to){
   if(String(from)===String(to)) return 0;
+  /* Règle du plateau : le passage direct 5 <-> 6 coûte exactement 2 déplacements. */
+  if((String(from)==='5' && String(to)==='6') || (String(from)==='6' && String(to)==='5')) return 2;
   const q=[[from,0]];
   const seen=new Set([String(from)]);
   while(q.length){
