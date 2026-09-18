@@ -689,8 +689,15 @@ io.on('connection',socket=>{
     if(st.pointEnded||!allowed) return socket.emit('roomError','Ce pouvoir doit être activé au moment de choisir la valeur d’une tuile.');
     const powers=st.characterPowers?.[side];
     const p=powers?.[power];
-    if(!p||p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
+    if(!p) return socket.emit('roomError','Pouvoir indisponible.');
+    if(p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
     if(power==='jeanne_pm2'&&!powers?.jeanne_pm1?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');
+    /* Un pouvoir Jeanne précédent peut encore être marqué active jusqu'à la
+       consommation de la valeur. L'activation du pouvoir suivant remplace
+       cette fenêtre : les pouvoirs ne se cumulent jamais. */
+    for(const key of ['jeanne_pm1','jeanne_pm2']){
+      if(key!==power && powers?.[key]) powers[key].active=false;
+    }
     p.used=true;p.active=true;
     io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});
   });
