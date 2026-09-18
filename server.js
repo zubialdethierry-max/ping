@@ -195,6 +195,15 @@ function objectiveComplete(st,side){
 
 
 function resetPointState(st){
+  /* Si Mathieu a déjà déclenché son pouvoir 3, son FILET est consommé
+     même si le point s'est terminé avant le lancer d'épuisement. */
+  if(st.mathieuExhaustion){
+    for(const side of ['top','bottom']){
+      const x=st.mathieuExhaustion[side];
+      if(x && x.stage!=='done'){x.stage='done';x.used=true;}
+    }
+  }
+
   const pingPiles=[];
   for(const color of ['jaune','vert','rouge']){
     const v=shuffle([1,2,3,4,5,6]);
