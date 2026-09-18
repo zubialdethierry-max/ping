@@ -11,6 +11,13 @@ module.exports=function installCharacterSelection(socket,ctx){
     const side=player.seat==='joiner'?'top':'bottom';
     if(!characterState.choose(r.state,side,character))return socket.emit('roomError','Choix de personnage invalide.');
     io.to(room).emit('freshCharacterChosen',{state:r.state,side,character});
+    /* En mode BOT + personnages, le BOT prend automatiquement l'autre
+       personnage, comme dans le simulateur V3 Jeanne/Mathieu. */
+    if(r.botMode && r.state.characterMode==='on' && side==='bottom' && !r.state.characters.top){
+      const botCharacter=character==='mathieu'?'jeanne':'mathieu';
+      r.state.characters.top=botCharacter;
+      io.to(room).emit('freshCharacterChosen',{state:r.state,side:'top',character:botCharacter});
+    }
   });
 
   socket.on('freshJeanneResolve',data=>{
