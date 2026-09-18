@@ -588,21 +588,180 @@ function botIntermediateMoveChoice(st,target){
 function botMoveChoice(st,target,difficulty='easy'){
  return String(difficulty).startsWith('intermediate') ? botIntermediateMoveChoice(st,target) : botEasyMoveChoice(st,target);
 }
+
+/* BOT PERSONNAGES — couche de décision inspirée du simulateur V3.
+   Le moteur Facile/Intermédiaire reste inchangé : cette couche compare son
+   meilleur coup normal au meilleur coup rendu possible par le prochain pouvoir. */
+function botCharactersEnabled(st){
+ return st?.characterMode==='on' && ['mathieu','jeanne'].includes(st?.characters?.top);
+}
+function botNextPower(st){
+ if(!botCharactersEnabled(st))return null;
+ const ps=st.characterPowers?.top||{};
+ if(st.characters.top==='mathieu'){
+   if(!ps.mathieu_energy_only?.used)return 'mathieu_energy_only';
+   if(!ps.mathieu_reduce1?.used)return 'mathieu_reduce1';
+   if(!ps.mathieu_free_move?.used)return 'mathieu_free_move';
+ }else{
+   if(!ps.jeanne_pm1?.used)return 'jeanne_pm1';
+   if(!ps.jeanne_pm2?.used)return 'jeanne_pm2';
+   if(!ps.jeanne_free_value?.used)return 'jeanne_free_value';
+ }
+ return null;
+}
+function botPowerStage(power){
+ if(power==='mathieu_energy_only'||power==='jeanne_pm1')return 0;
+ if(power==='mathieu_reduce1'||power==='jeanne_pm2')return 1;
+ return 2;
+}
+function botPowerReserve(st,power){
+ const stage=botPowerStage(power);
+ const hint=Math.min(4-(Number(st.matchScore?.top)||0),4-(Number(st.matchScore?.bottom)||0));
+ return (stage===0?10:stage===1?14:18)*Math.min(1,Math.max(.35,hint/4));
+}
+function botVirtualShotResult(st,shot,moveSpend=0,moveEnergy=0){
+ if(!shot)return null;
+ const s=JSON.parse(JSON.stringify(st));
+ s.opponentMovement-=moveSpend;s.opponentEnergy-=moveEnergy;
+ const p=s.pingPiles[shot.pileIndex];
+ if(!p||!p.cards?.length)return null;
+ p.cards.shift();s.opponentEnergy-=shot.cost;
+ s.boardPlays.push({type:'botEval',side:'top',pileIndex:shot.pileIndex,color:shot.color,printedValue:shot.printedValue,finalValue:shot.finalValue,cost:shot.cost});
+ const progress=botProgress(s,'top');
+ const finish=objectiveComplete(s,'top');
+ const oppDistance=shortestDistance(s.localPaddleNode??'S',shot.finalValue);
+ return {progress,finish,oppDistance,movementAfter:s.opponentMovement,energyAfter:s.opponentEnergy};
+}
+function botV3LikeScore(st,shot,moveSpend=0,moveEnergy=0){
+ const f=botVirtualShotResult(st,shot,moveSpend,moveEnergy);
+ if(!f)return -Infinity;
+ return 1000*(f.finish?1:0)+22*f.progress+4*f.oppDistance+1.2*f.movementAfter+.8*f.energyAfter-.7*shot.cost;
+}
+function botJeanneCandidates(st,isService,power,difficulty){
+ const discount=power==='jeanne_pm1'?1:(power==='jeanne_pm2'?2:6);
+ const v=JSON.parse(JSON.stringify(st));
+ v.opponentEnergy=Math.min(13,st.opponentEnergy+discount);
+ const z=botShot(v,isService,difficulty);
+ const out=[];
+ for(const raw of z.options||[]){
+   const actualCost=power==='jeanne_free_value'?0:Math.max(0,Math.abs(raw.printedValue-raw.finalValue)-discount);
+   if(actualCost>st.opponentEnergy)continue;
+   const shot={...raw,cost:actualCost,power};
+   shot.powerScore=botV3LikeScore(st,shot);
+   out.push(shot);
+ }
+ out.sort((a,b)=>b.powerScore-a.powerScore||a.cost-b.cost||a.pileIndex-b.pileIndex||a.finalValue-b.finalValue);
+ return out;
+}
+function botChooseJeanneShot(st,isService,difficulty){
+ const normal=botShot(st,isService,difficulty),normalChoice=normal.choice;
+ if(!botCharactersEnabled(st)||st.characters.top!=='jeanne')return {choice:normalChoice,normal,power:null};
+ const power=botNextPower(st);
+ if(!power||!power.startsWith('jeanne_'))return {choice:normalChoice,normal,power:null};
+ const pacts=botJeanneCandidates(st,isService,power,difficulty),best=pacts[0]||null;
+ if(!best)return {choice:normalChoice,normal,power:null};
+ if(!normalChoice)return {choice:best,normal,power,forced:true,powerScore:best.powerScore,normalScore:-Infinity};
+ const normalScore=botV3LikeScore(st,normalChoice);
+ let powerScore=best.powerScore;
+ if(power==='jeanne_free_value'&&!botVirtualShotResult(st,best)?.finish)powerScore-=180;
+ const use=powerScore>normalScore+botPowerReserve(st,power);
+ return {choice:use?best:normalChoice,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:false};
+}
+function botMathieuPayments(st,power){
+ const raw=shortestDistance(st.opponentPaddleNode??'S',Number(st.lastPlayedValue));
+ if(!Number.isFinite(raw))return [];
+ let d=raw;
+ if(power==='mathieu_reduce1')d=Math.max(0,raw-1);
+ if(power==='mathieu_free_move')return [{moveSpend:0,energySpend:0,distance:0,rawDistance:raw}];
+ if(power==='mathieu_energy_only'){
+   return raw<=st.opponentEnergy?[{moveSpend:0,energySpend:raw,distance:raw,rawDistance:raw}]:[];
+ }
+ if(d===0)return [{moveSpend:0,energySpend:0,distance:0,rawDistance:raw}];
+ const out=[];
+ for(let m=1;m<=d;m++){const e=d-m;if(m<=st.opponentMovement&&e<=st.opponentEnergy)out.push({moveSpend:m,energySpend:e,distance:d,rawDistance:raw});}
+ return out;
+}
+function botEvaluateMoveAndReply(st,payment,difficulty){
+ const s=JSON.parse(JSON.stringify(st));
+ s.opponentMovement-=payment.moveSpend;s.opponentEnergy-=payment.energySpend;s.opponentPaddleNode=Number(st.lastPlayedValue);s.phase='topResponse';
+ const z=botShot(s,false,difficulty),shot=z.choice;
+ if(!shot)return {score:-Infinity,payment,shot:null,finish:false};
+ const score=botV3LikeScore(s,shot);
+ const f=botVirtualShotResult(s,shot);
+ return {score,payment,shot,finish:!!f?.finish};
+}
+function botChooseMathieuMove(st,target,difficulty){
+ const normal=botMoveChoice(st,target,difficulty),normalMove=normal&&normal.choice;
+ if(!botCharactersEnabled(st)||st.characters.top!=='mathieu')return {choice:normalMove,normal,power:null};
+ const power=botNextPower(st);
+ if(!power||!power.startsWith('mathieu_'))return {choice:normalMove,normal,power:null};
+ let normalEval=null;
+ if(normalMove)normalEval=botEvaluateMoveAndReply(st,normalMove,difficulty);
+ const evals=botMathieuPayments(st,power).map(p=>botEvaluateMoveAndReply(st,p,difficulty)).filter(x=>Number.isFinite(x.score));
+ evals.sort((a,b)=>b.score-a.score||a.payment.energySpend-b.payment.energySpend||b.payment.moveSpend-a.payment.moveSpend);
+ const best=evals[0]||null;
+ if(!best)return {choice:normalMove,normal,power:null};
+ if(!normalMove)return {choice:{...best.payment,power},normal,power,forced:true,powerScore:best.score,normalScore:-Infinity};
+ let powerScore=best.score;
+ if(power==='mathieu_free_move'&&!best.finish)powerScore-=180;
+ const normalScore=normalEval?.score??-Infinity;
+ const use=powerScore>normalScore+botPowerReserve(st,power);
+ return {choice:use?{...best.payment,power}:normalMove,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:false};
+}
+function botActivatePower(st,power){
+ const p=st.characterPowers?.top?.[power];if(!p||p.used)return false;
+ p.used=true;p.active=true;
+ if(power==='mathieu_free_move')st.mathieuExhaustion.top={stage:'first'};
+ if(power==='jeanne_free_value')st.jeanneExhaustion.top={stage:'first'};
+ return true;
+}
+function botPowerLabel(power){
+ return ({mathieu_energy_only:'Mathieu P1',mathieu_reduce1:'Mathieu P2',mathieu_free_move:'Mathieu P3',jeanne_pm1:'Jeanne P1',jeanne_pm2:'Jeanne P2',jeanne_free_value:'Jeanne P3'})[power]||power;
+}
+function botResolveExhaustion(room,r,kind){
+ const st=r.state,x=kind==='mathieu'?st.mathieuExhaustion?.top:st.jeanneExhaustion?.top;
+ const phase=kind==='mathieu'?'mathieuExhaustion':'jeanneExhaustion';
+ if(!r.botMode||st.pointEnded||st.phase!==phase||!x||x.stage!=='roll')return;
+ const roll=1+Math.floor(Math.random()*6),lost=kind==='mathieu'?roll<=3:roll>=4;
+ x.stage='done';x.used=true;
+ botLog(room,`BOT ${kind==='mathieu'?'Mathieu':'Jeanne'} — épuisement : D6 = ${roll} → ${lost?'POINT PERDU':'continue'}.`);
+ if(lost){
+   st.pointEnded=true;st.pointWinnerSide='bottom';st.pointEndReason=kind+'Exhaustion';
+   st.pointEndMessage=`Le BOT ${kind==='mathieu'?'Mathieu':'Jeanne'} échoue à son jet d’épuisement (D6 = ${roll}).`;
+   st.phase='pointEnded';
+ }else st.phase=x.resume;
+ io.to(room).emit(kind==='mathieu'?'freshMathieuRollResult':'freshJeanneRollResult',{state:st,side:'top',roll,lost});
+ if(lost)io.to(room).emit('freshPointEnded',{state:st,winnerSide:'bottom',reason:st.pointEndReason,message:st.pointEndMessage});
+ else scheduleBot(room,r);
+}
 function botService(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.serviceDone||st.pointServerSide!=='top'||st.phase!=='service')return;
- const z=botShot(st,true,r.botDifficulty),c=z.choice;if(!c)return;botAnalysis(room,'service',st,{chosen:c,options:z.options||[]},r.botDifficulty);const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
+ const pick=botChooseJeanneShot(st,true,r.botDifficulty),c=pick.choice;if(!c)return;
+ if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au service. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
+ const z=pick.normal;botAnalysis(room,'service',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
+ const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.serviceDone=true;
+ if(st.characterPowers?.top?.jeanne_pm1)st.characterPowers.top.jeanne_pm1.active=false;
+ if(st.characterPowers?.top?.jeanne_pm2)st.characterPowers.top.jeanne_pm2.active=false;
+ if(st.characterPowers?.top?.jeanne_free_value)st.characterPowers.top.jeanne_free_value.active=false;
  st.lastServiceValue=c.finalValue;st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.phase='bottomMove';
- const action={type:'service',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost};st.boardPlays.push(action);
- botLog(room,`Service : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. ${z.count} choix évalués. Il vise son objectif ${st.playerObjectives.top} et voit votre objectif ${st.playerObjectives.bottom}.`);
+ const action={type:'service',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost,characterPower:pick.power||null};st.boardPlays.push(action);
+ botLog(room,`Service : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Il vise son objectif ${st.playerObjectives.top} et voit votre objectif ${st.playerObjectives.bottom}.`);
  io.to(room).emit('freshServiceApplied',{state:st,action});
 }
 function botMove(room,r){
- const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;const mz=botMoveChoice(st,+st.lastPlayedValue,r.botDifficulty),m=mz&&mz.choice;
+ const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;
+ const pick=botChooseMathieuMove(st,+st.lastPlayedValue,r.botDifficulty),m=pick.choice;
  if(!m){markPointEnded(room,r,'bottom','impossibleMovement','Le BOT ne peut pas payer le déplacement requis.');return;}
- botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:mz.options||[]},r.botDifficulty);
- st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=m.targetValue;const ended=maybeEndAfterMove(room,r,'top');if(!ended)st.phase='topResponse';
- botLog(room,m.distance===0?`Réception ${m.targetValue} : déjà en position.`:`Réception ${m.targetValue} : distance ${m.distance} → ${m.moveSpend} déplacement + ${m.energySpend} énergie.`);
- io.to(room).emit('freshTopMoveApplied',{state:st,action:{type:'topMove',targetValue:m.targetValue,moveSpend:m.moveSpend,energySpend:m.energySpend,distance:m.distance}});
+ if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au déplacement : distance brute ${m.rawDistance??m.distance}, coût retenu ${m.moveSpend} D + ${m.energySpend} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
+ botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:pick.normal?.options||[],characterPower:pick.power||null},r.botDifficulty);
+ st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=+st.lastPlayedValue;
+ if(st.characterPowers?.top?.mathieu_energy_only)st.characterPowers.top.mathieu_energy_only.active=false;
+ if(st.characterPowers?.top?.mathieu_reduce1)st.characterPowers.top.mathieu_reduce1.active=false;
+ if(st.characterPowers?.top?.mathieu_free_move)st.characterPowers.top.mathieu_free_move.active=false;
+ const ended=maybeEndAfterMove(room,r,'top');if(!ended)st.phase='topResponse';
+ const targetValue=+st.lastPlayedValue;
+ botLog(room,m.distance===0?`Réception ${targetValue} : déjà en position.`:`Réception ${targetValue} : distance ${m.distance} → ${m.moveSpend} déplacement + ${m.energySpend} énergie.`);
+ io.to(room).emit('freshTopMoveApplied',{state:st,action:{type:'topMove',targetValue,moveSpend:m.moveSpend,energySpend:m.energySpend,distance:m.distance,characterPower:pick.power||null}});
  if(!ended)setTimeout(()=>botResponse(room,r),350);
 }
 function jeanneOpponentResponded(st,side){
@@ -646,28 +805,42 @@ function mathieuOwnerResponded(room,r,side){
 }
 
 function botResponse(room,r){
- const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topResponse')return;const before=botProgress(st,'top'),z=botShot(st,false,r.botDifficulty),c=z.choice;
+ const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topResponse')return;
+ const before=botProgress(st,'top'),pick=botChooseJeanneShot(st,false,r.botDifficulty),c=pick.choice;
  if(!c){markPointEnded(room,r,'bottom','noLegalResponse','Le BOT n’a aucune réponse légale.');return;}
- botAnalysis(room,'response',st,{chosen:c,options:z.options||[]},r.botDifficulty);
- const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
- const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost};st.boardPlays.push(action);
+ if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé à la réponse : ${c.printedValue} → ${c.finalValue}, coût ${c.cost} E. Score pouvoir ${pick.powerScore?.toFixed?.(1)??pick.powerScore} / normal ${Number.isFinite(pick.normalScore)?pick.normalScore.toFixed(1):'aucun coup'}.`);
+ const z=pick.normal;botAnalysis(room,'response',st,{chosen:c,options:z.options||[],characterPower:pick.power||null},r.botDifficulty);
+ const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;
+ if(st.characterPowers?.top?.jeanne_pm1)st.characterPowers.top.jeanne_pm1.active=false;
+ if(st.characterPowers?.top?.jeanne_pm2)st.characterPowers.top.jeanne_pm2.active=false;
+ if(st.characterPowers?.top?.jeanne_free_value)st.characterPowers.top.jeanne_free_value.active=false;
+ st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
+ mathieuOpponentResponded(st,'top');jeanneOpponentResponded(st,'top');
+ const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost,characterPower:pick.power||null};st.boardPlays.push(action);
  const after=botProgress(st,'top');let e=null;
  if(objectiveComplete(st,'top'))e={winner:'top',reason:'objective',message:'Le BOT complète son objectif.'};
  else if(!hasLegalResponse(st,'bottom'))e={winner:'top',reason:'noLegalResponse',message:'Vous n’avez aucune réponse légale.'};
  else{const d=shortestDistance(st.localPaddleNode??'S',c.finalValue);if(!canPayMoveDistance(d,st.localMovement,st.localEnergy))e={winner:'top',reason:'impossibleMovement',message:`Vous devez parcourir ${d} zone(s), mais ne pouvez pas payer le déplacement.`};}
  if(e){st.pointEnded=true;st.pointWinnerSide=e.winner;st.pointEndReason=e.reason;st.pointEndMessage=e.message;st.phase='pointEnded';}else st.phase='bottomMove';
- botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. ${z.count} choix légaux. Progression de son objectif : ${before} → ${after}.`);
- io.to(room).emit('freshTopResponseApplied',{state:st,action});if(e)io.to(room).emit('freshPointEnded',{state:st,winnerSide:e.winner,reason:e.reason,message:e.message});
+ let exhaustionHold=false;
+ if(!e)exhaustionHold=mathieuOwnerResponded(room,r,'top')||jeanneOwnerResponded(room,r,'top');
+ botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Progression de son objectif : ${before} → ${after}.`);
+ io.to(room).emit('freshTopResponseApplied',{state:st,action});
+ if(e)io.to(room).emit('freshPointEnded',{state:st,winnerSide:e.winner,reason:e.reason,message:e.message});
+ else if(exhaustionHold)scheduleBot(room,r);
 }
 function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)return;
  if(r.state.phase==='service'&&r.state.pointServerSide==='top')setTimeout(()=>botService(room,r),550);
  else if(r.state.phase==='topMove')setTimeout(()=>botMove(room,r),550);
+ else if(r.state.phase==='mathieuExhaustion'&&r.state.mathieuExhaustion?.top?.stage==='roll')setTimeout(()=>botResolveExhaustion(room,r,'mathieu'),550);
+ else if(r.state.phase==='jeanneExhaustion'&&r.state.jeanneExhaustion?.top?.stage==='roll')setTimeout(()=>botResolveExhaustion(room,r,'jeanne'),550);
 }
 
 io.on('connection',socket=>{
   installCharacterSelection(socket,{io,rooms,scheduleBot});
-  socket.on('createRoom',({name,opponentType})=>{
+  socket.on('createRoom',({name,opponentType,characterMode})=>{
     const room=makeCode(), state=makeInitialState();
+    state.characterMode=characterMode==='on'?'on':'off';
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
