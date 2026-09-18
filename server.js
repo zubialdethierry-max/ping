@@ -840,7 +840,9 @@ io.on('connection',socket=>{
   installCharacterSelection(socket,{io,rooms,scheduleBot});
   socket.on('createRoom',({name,opponentType,characterMode})=>{
     const room=makeCode(), state=makeInitialState();
-    state.characterMode=characterMode==='on'?'on':'off';
+    /* Compatibilité avec le frontend personnages-dev actuel, qui ne transmet
+       pas encore toujours characterMode : absence = comportement historique ON. */
+    state.characterMode=characterMode==='off'?'off':'on';
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
