@@ -60,7 +60,7 @@ function makeInitialState(){
     characterMode:'on',
     characters:characterState.createCharacters(),
     characterPowers:{
-      top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false}},
+      top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false}},
       bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false}}
     },
     mathieuExhaustion:{top:null,bottom:null}
@@ -684,11 +684,13 @@ io.on('connection',socket=>{
     if(!player) return socket.emit('roomError','Joueur introuvable.');
     const side=player.seat==='joiner'?'top':'bottom',st=r.state;
     if(st.characters?.[side]!=='jeanne') return socket.emit('roomError','Ce pouvoir appartient à Jeanne.');
-    if(power!=='jeanne_pm1') return socket.emit('roomError','Pouvoir non disponible à cette étape.');
+    if(!['jeanne_pm1','jeanne_pm2'].includes(power)) return socket.emit('roomError','Pouvoir non disponible à cette étape.');
     const allowed=(st.phase==='service'&&st.pointServerSide===side)||st.phase===(side==='top'?'topResponse':'bottomResponse');
     if(st.pointEnded||!allowed) return socket.emit('roomError','Ce pouvoir doit être activé au moment de choisir la valeur d’une tuile.');
-    const p=st.characterPowers?.[side]?.jeanne_pm1;
+    const powers=st.characterPowers?.[side];
+    const p=powers?.[power];
     if(!p||p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
+    if(power==='jeanne_pm2'&&!powers?.jeanne_pm1?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');
     p.used=true;p.active=true;
     io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});
   });
@@ -767,14 +769,15 @@ io.on('connection',socket=>{
     const pile=st.pingPiles[pileIndex];
     if(!pile || !pile.cards || !pile.cards.length) return;
     const printedValue=Number(pile.cards[0]);
-    const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1;
-    const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);
-    const cost=jeanneFree?0:Math.abs(printedValue-finalValue);
+    const jp=st.characterPowers?.[serviceSide]?.jeanne_pm1,jp2=st.characterPowers?.[serviceSide]?.jeanne_pm2;
+    const jd=Math.abs(printedValue-finalValue);
+    const cost=jp2?.active?Math.max(0,jd-2):(jp?.active?Math.max(0,jd-1):jd);
     const energyAvailable = serviceSide==='bottom' ? st.localEnergy : st.opponentEnergy;
     if(cost>energyAvailable) return socket.emit('roomError','Énergie insuffisante.');
 
     pile.cards.shift();
     if(jp?.active) jp.active=false;
+    if(jp2?.active) jp2.active=false;
     if(serviceSide==='bottom') st.localEnergy-=cost;
     else st.opponentEnergy-=cost;
 
@@ -887,9 +890,9 @@ io.on('connection',socket=>{
     if(st.blockedColor && pile.color===st.blockedColor) return socket.emit('roomError','Cette couleur est interdite.');
 
     const printedValue=Number(pile.cards[0]);
-    const jp=st.characterPowers?.top?.jeanne_pm1;
-    const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);
-    const cost=jeanneFree?0:Math.abs(printedValue-finalValue);
+    const jp=st.characterPowers?.top?.jeanne_pm1,jp2=st.characterPowers?.top?.jeanne_pm2;
+    const jd=Math.abs(printedValue-finalValue);
+    const cost=jp2?.active?Math.max(0,jd-2):(jp?.active?Math.max(0,jd-1):jd);
     if(cost>st.opponentEnergy) return socket.emit('roomError','Énergie insuffisante.');
     if(!responseRuleAllows(st.lastPlayedColor,Number(st.lastPlayedValue),finalValue)){
       return socket.emit('roomError','Valeur de réponse interdite.');
@@ -897,6 +900,7 @@ io.on('connection',socket=>{
 
     pile.cards.shift();
     if(jp?.active) jp.active=false;
+    if(jp2?.active) jp2.active=false;
     st.opponentEnergy-=cost;
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
@@ -1025,9 +1029,9 @@ io.on('connection',socket=>{
     if(st.blockedColor && pile.color===st.blockedColor) return socket.emit('roomError','Cette couleur est interdite.');
 
     const printedValue=Number(pile.cards[0]);
-    const jp=st.characterPowers?.bottom?.jeanne_pm1;
-    const jeanneFree=!!(jp?.active&&Math.abs(printedValue-finalValue)===1);
-    const cost=jeanneFree?0:Math.abs(printedValue-finalValue);
+    const jp=st.characterPowers?.bottom?.jeanne_pm1,jp2=st.characterPowers?.bottom?.jeanne_pm2;
+    const jd=Math.abs(printedValue-finalValue);
+    const cost=jp2?.active?Math.max(0,jd-2):(jp?.active?Math.max(0,jd-1):jd);
     if(cost>st.localEnergy) return socket.emit('roomError','Énergie insuffisante.');
     if(!responseRuleAllows(st.lastPlayedColor,Number(st.lastPlayedValue),finalValue)){
       return socket.emit('roomError','Valeur de réponse interdite.');
@@ -1035,6 +1039,7 @@ io.on('connection',socket=>{
 
     pile.cards.shift();
     if(jp?.active) jp.active=false;
+    if(jp2?.active) jp2.active=false;
     st.localEnergy-=cost;
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
