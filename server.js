@@ -331,6 +331,19 @@ function botAnalysis(room,kind,st,data,difficulty='easy'){
  else if(selectedPower) powerDecision=data?.powerForced?'UTILISÉ — seul coup possible':'UTILISÉ';
  else if(powerConsidered) powerDecision='CONSERVÉ';
  else if(!nextCharacterPower) powerDecision='AUCUN POUVOIR RESTANT';
+ /* Le frontend CSV actuel n'exporte que data.chosen/options.
+    On place donc aussi le diagnostic dans chosen, sans modifier le coup lui-même. */
+ const chosenForExport=data?.chosen ? {
+   ...data.chosen,
+   botCharacter:st?.characters?.top||null,
+   nextCharacterPower,
+   powerConsidered,
+   selectedPower,
+   normalScore,
+   powerScore,
+   powerDecision
+ } : data?.chosen;
+ const exportData={...data,chosen:chosenForExport};
  io.to(room).emit('freshBotAnalysis',{
   kind,difficulty,
   at:new Date().toISOString(),
@@ -352,7 +365,7 @@ function botAnalysis(room,kind,st,data,difficulty='easy'){
    botProgress:botProgress(st,'top'),playerProgress:botProgress(st,'bottom'),
    visiblePiles:botVisiblePiles(st)
   },
-  data
+  data:exportData
  });
 }
 function botBonus(st,side,color,v){
