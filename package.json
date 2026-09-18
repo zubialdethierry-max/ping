@@ -4,7 +4,7 @@
   "private": true,
   "description": "PING! - intégration personnages étape 1 - Mathieu",
   "scripts": {
-    "start": "node -e \"const fs=require('fs'),path=require('path');const src=path.resolve('server-dev.js'),out=path.resolve('server-dev-runtime.js');let s=fs.readFileSync(src,'utf8');s=require('./fix-v0401-dev')(s);fs.writeFileSync(out,s);require(out)\""
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=20"
