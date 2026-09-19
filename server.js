@@ -1415,6 +1415,12 @@ io.on('connection',socket=>{
     if(!st.matchScore) st.matchScore={top:0,bottom:0};
     st.matchScore[winner]=Math.min(4,(Number(st.matchScore[winner])||0)+1);
 
+    /* Le 3e point déclenche une seule fois l'entrée en "Coup de stress". */
+    if(st.timerMode==='match_point_30' && st.matchScore[winner]===3 && !st.matchPointTimerAnnounced){
+      st.matchPointTimerAnnounced=true;
+      io.to(room).emit('freshMatchPointTimerActivated',{state:st,side:winner,seconds:30});
+    }
+
     /* A 4 points, on arrête la partie : pas de nouveau point. */
     if(st.matchScore[winner]>=4){
       st.phase='matchEnded';
