@@ -14,6 +14,7 @@ app.get('/health',(req,res)=>{
 });
 
 const rooms=new Map();
+const characterState=require('./character-state-dev');
 
 function shuffle(a){
   a=[...a];
@@ -598,8 +599,23 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
 }
 
 io.on('connection',socket=>{
-  socket.on('createRoom',({name,opponentType})=>{
+  socket.on('freshChooseCharacter',({room,character})=>{
+    room=String(room||'').trim();
+    character=String(character||'').trim();
+    const r=rooms.get(room);
+    if(!r)return socket.emit('roomError','Salle introuvable.');
+    const player=r.players.find(p=>p.id===socket.id);
+    if(!player||player.isBot)return socket.emit('roomError','Joueur introuvable.');
+    const side=player.seat==='joiner'?'top':'bottom';
+    if(r.state?.characterMode!=='on')return socket.emit('roomError','Cette partie est sans personnages.');
+    if(!characterState.choose(r.state,side,character))return socket.emit('roomError','Choix de personnage invalide.');
+    io.to(room).emit('freshCharacterChosen',{state:r.state,side,character});
+  });
+
+  socket.on('createRoom',({name,opponentType,characterMode})=>{
     const room=makeCode(), state=makeInitialState();
+    state.characterMode=characterMode==='on'?'on':'off';
+    state.characters=characterState.createCharacters();
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
