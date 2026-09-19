@@ -59,7 +59,10 @@
   const wrap=document.getElementById('pingBlitzClocks');if(!wrap)return;
   if(lastState?.timerMode!=='blitz'||!lastState?.blitz){wrap.className='';return;}
   wrap.className='on';const b=lastState.blitz,now=Date.now();
-  for(const s of ['top','bottom']){
+  const me=side(),other=me==='top'?'bottom':'top';
+  for(const s of [other,me]){
+   const wanted=s===me?1:0;
+   const node=wrap.querySelector('[data-side="'+s+'"]');if(node)node.style.order=wanted;
    const el=wrap.querySelector('[data-side="'+s+'"]'),name=lastState.playerNames?.[s]||(s==='bottom'?'J1':'J2');
    let ms=Number(b.remaining?.[s])||0;if(b.activeSide===s&&b.startedAt)ms=Math.max(0,ms-(now-Number(b.startedAt)));
    el.querySelector('.blitzName').textContent=name;el.querySelector('.blitzTime').textContent=fmt(ms);
