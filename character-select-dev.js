@@ -34,6 +34,7 @@ function sync(st){
   const side=getSide();
   if(!st.characters||!Object.prototype.hasOwnProperty.call(st.characters,side))return;
   const chosen=st.characters[side];
+  document.body.dataset.pingCharacter=chosen||'';
   if(chosen)document.getElementById('characterChoice')?.classList.remove('open');
   else if(document.body.classList.contains('fresh-game-ready'))document.getElementById('characterChoice')?.classList.add('open');
 }
