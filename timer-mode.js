@@ -10,7 +10,7 @@
   const host=document.getElementById('pingModeChoice');if(!host)return;
   const style=document.createElement('style');
   style.textContent=`
-   #pingTimerMode{margin-top:9px}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
+   #pingTimerMode{margin-top:9px}.pingModeButtons button.pingGameModeSelected{background:#fff!important;color:#102c46!important}.pingLobbyActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.pingLobbyActions button{margin:0!important;width:100%;padding:8px!important}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
    .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:#102c46;color:#fff;font-size:11px;font-weight:900;cursor:pointer}
    #pingBlitzMinutes{display:none;margin-top:6px}
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
@@ -36,6 +36,25 @@
   const box=document.createElement('div');box.id='pingTimerMode';
   box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 5 OU 10 MIN / JOUEUR</option></select><select id="pingBlitzMinutes" class="ptSelect"><option value="5">BLITZ — 5 MINUTES</option><option value="10">BLITZ — 10 MINUTES</option></select>';
   const join=document.getElementById('freshShowJoin');host.insertBefore(box,join);
+  /* La sélection du mode ne crée plus la partie immédiatement. */
+  let selectedOpponent='human';
+  const modes=[
+   [document.getElementById('freshCreate'),'human'],
+   [document.getElementById('freshCreateBotEasy'),'bot_easy'],
+   [document.getElementById('freshCreateBotIntermediate'),'bot_intermediate']
+  ];
+  const paintMode=()=>modes.forEach(([b,v])=>b&&b.classList.toggle('pingGameModeSelected',v===selectedOpponent));
+  modes.forEach(([b,v])=>{if(!b)return;b.addEventListener('click',ev=>{ev.preventDefault();ev.stopImmediatePropagation();selectedOpponent=v;paintMode();},true);});
+  paintMode();
+  const actions=document.createElement('div');actions.className='pingLobbyActions';
+  const create=document.createElement('button');create.id='pingCreateConfigured';create.className='primary';create.type='button';create.textContent='CRÉER LA PARTIE';
+  if(join){join.classList.remove('pingJoinButton');join.parentElement.insertBefore(actions,join);actions.append(create,join);}
+  create.addEventListener('click',()=>{
+   const name=document.getElementById('freshName')?.value.trim();if(!name)return alert('Entre ton prénom.');
+   const s=socket();if(!s)return alert('Connexion au serveur indisponible.');
+   window.freshBotMode=selectedOpponent!=='human';
+   s.emit('createRoom',{name,opponentType:selectedOpponent,characterMode:(window.PING_CHARACTERS_MODE==='on'?'on':'off')});
+  });
   window.PING_TIMER_MODE='off';
   const select=box.querySelector('#pingTimerSelect');
   const blitzSelect=box.querySelector('#pingBlitzMinutes');window.PING_BLITZ_MINUTES=5;
