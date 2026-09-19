@@ -15,6 +15,10 @@
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
      font:900 14px Arial;text-align:center;box-shadow:0 4px 14px #0004}
+   @media (max-width:1200px),(max-height:760px){
+     #pingTurnClock{right:auto;left:12px;top:auto;bottom:12px;transform:none;min-width:96px;padding:6px 9px}
+     #pingTurnClock .time{font-size:25px!important}
+   }
    #pingTurnClock.on{display:block}#pingTurnClock .time{font-size:30px;line-height:1;margin-top:3px}
    #pingTurnClock.waiting{display:block;opacity:.42;filter:grayscale(1);background:#e5e8eb}
    #pingTurnClock.mine{background:#fff7c9}#pingTurnClock.danger .time{font-size:34px}
