@@ -39,6 +39,13 @@ function sync(st){
   else if(document.body.classList.contains('fresh-game-ready'))document.getElementById('characterChoice')?.classList.add('open');
 }
 window.addEventListener('load',()=>{
+  /* Correctif global de la piste de score, actif avec ou sans personnages. */
+  if(!document.querySelector('script[data-ping-score-track-fix]')){
+    const sc=document.createElement('script');
+    sc.src='/score-track-fix.js';
+    sc.dataset.pingScoreTrackFix='1';
+    document.head.appendChild(sc);
+  }
   init();
   if(!installModeTransport()){const t=setInterval(()=>{if(installModeTransport())clearInterval(t)},25);}
   const s=getSocket();
