@@ -17,7 +17,11 @@
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
      font:900 14px Arial;text-align:center;box-shadow:0 4px 14px #0004}
    #pingTurnClock.on{display:block}#pingTurnClock .time{font-size:30px;line-height:1;margin-top:3px}
+   #pingTurnClock.waiting{display:block;opacity:.42;filter:grayscale(1);background:#e5e8eb}
    #pingTurnClock.mine{background:#fff7c9}#pingTurnClock.danger .time{font-size:34px}
+   #pingStress{position:fixed;inset:0;z-index:23000;display:none;align-items:center;justify-content:center;background:#07111ed9;font-family:Arial,sans-serif}
+   #pingStress.open{display:flex}.psBox{width:min(520px,88vw);background:white;color:#102c46;border:5px solid #102c46;border-radius:20px;padding:26px;text-align:center;box-shadow:0 18px 55px #0008}
+   .psTitle{font-size:32px;font-weight:1000;margin-bottom:10px}.psText{font-size:18px;font-weight:800;line-height:1.35}.psTime{font-size:48px;font-weight:1000;margin:13px 0}.psOk{padding:11px 26px;border:0;border-radius:9px;background:#102c46;color:white;font-size:16px;font-weight:900;cursor:pointer}
   `;
   document.head.appendChild(style);
   const box=document.createElement('div');box.id='pingTimerMode';
@@ -25,7 +29,9 @@
   const join=document.getElementById('freshShowJoin');host.insertBefore(box,join);
   window.PING_TIMER_MODE='off';
   box.querySelectorAll('button').forEach(b=>b.onclick=()=>{window.PING_TIMER_MODE=b.dataset.t;box.querySelectorAll('button').forEach(x=>x.classList.toggle('ptChosen',x===b));});
-  const clock=document.createElement('div');clock.id='pingTurnClock';clock.innerHTML='<div class="who"></div><div class="time">30</div>';document.body.appendChild(clock);
+  const clock=document.createElement('div');clock.id='pingTurnClock';clock.innerHTML='<div class="who">COUP DE STRESS</div><div class="time">30 s</div>';document.body.appendChild(clock);
+  const stress=document.createElement('div');stress.id='pingStress';stress.innerHTML='<div class="psBox"><div class="psTitle">COUP DE STRESS !</div><div class="psText">Un joueur est à un point de la victoire.<br>Vous avez désormais</div><div class="psTime">30 SECONDES</div><div class="psText">par tour de jeu.</div><button class="psOk" type="button">JOUER</button></div>';document.body.appendChild(stress);
+  stress.querySelector('.psOk').onclick=()=>stress.classList.remove('open');
  }
  function transport(){
   const s=socket();if(!s||s.__pingTimerTransport)return false;
@@ -39,7 +45,14 @@
  function render(){
   cancelAnimationFrame(raf);
   const el=document.getElementById('pingTurnClock'),t=lastState?.turnTimer;
-  if(!el||lastState?.timerMode!=='match_point_30'||!t?.activeSide||!t?.deadline){if(el)el.className='';return;}
+  if(!el)return;
+  if(lastState?.timerMode!=='match_point_30'){el.className='';return;}
+  if(!t?.activeSide||!t?.deadline){
+    el.className='waiting';
+    el.querySelector('.who').textContent=lastState?.matchPointTimerAnnounced?'EN ATTENTE':'COUP DE STRESS';
+    el.querySelector('.time').textContent='30 s';
+    return;
+  }
   const left=Math.max(0,Math.ceil((Number(t.deadline)-Date.now())/1000));
   const mine=t.activeSide===side();
   el.className='on'+(mine?' mine':'')+(left<=10?' danger':'');
@@ -53,7 +66,7 @@
   const bind=()=>{
     const s=socket();
     if(!s)return false;
-    if(!s.__pingTimerStateListener&&s.onAny){s.onAny((e,p)=>{if(p?.state)sync(p.state);});s.__pingTimerStateListener=true;}
+    if(!s.__pingTimerStateListener&&s.onAny){s.onAny((e,p)=>{if(p?.state)sync(p.state);if(e==='freshMatchPointTimerActivated')document.getElementById('pingStress')?.classList.add('open');});s.__pingTimerStateListener=true;}
     return true;
   };
   if(!bind()){const q=setInterval(()=>{if(bind())clearInterval(q)},25);}
