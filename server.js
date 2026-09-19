@@ -249,8 +249,11 @@ function resetPointState(st){
   st.phase='service';
 }
 
-function timerMatchPointActive(st){
-  return st?.timerMode==='match_point_30' && Math.max(Number(st.matchScore?.top)||0,Number(st.matchScore?.bottom)||0)>=3;
+function timerSecondsForState(st){
+  const high=Math.max(Number(st?.matchScore?.top)||0,Number(st?.matchScore?.bottom)||0);
+  if(st?.timerMode==='match_point_30') return high>=3?30:0;
+  if(st?.timerMode==='full_60_30') return high>=3?30:60;
+  return 0;
 }
 function clearTurnTimer(r){
   if(r?.turnTimerHandle){clearTimeout(r.turnTimerHandle);r.turnTimerHandle=null;}
@@ -259,18 +262,19 @@ function clearTurnTimer(r){
 function startTurnTimer(room,r,side){
   const st=r?.state;if(!st)return;
   clearTurnTimer(r);
-  if(!timerMatchPointActive(st)||st.pointEnded||st.phase==='service'||st.phase==='matchEnded')return;
-  const deadline=Date.now()+30000;
-  st.turnTimer={activeSide:side,deadline,seconds:30};
-  io.to(room).emit('freshTurnTimer',{state:st,activeSide:side,deadline,seconds:30});
+  const seconds=timerSecondsForState(st);
+  if(!seconds||st.pointEnded||st.phase==='service'||st.phase==='matchEnded')return;
+  const deadline=Date.now()+seconds*1000;
+  st.turnTimer={activeSide:side,deadline,seconds};
+  io.to(room).emit('freshTurnTimer',{state:st,activeSide:side,deadline,seconds});
   r.turnTimerHandle=setTimeout(()=>{
     if(!r.state||r.state.pointEnded)return;
     const t=r.state.turnTimer;
     if(!t||t.activeSide!==side||t.deadline!==deadline)return;
     clearTurnTimer(r);
     const winner=side==='bottom'?'top':'bottom';
-    markPointEnded(room,r,winner,'turnTimeout',`${side==='bottom'?'J1':'J2'} a dépassé les 30 secondes de réflexion.`);
-  },30050);
+    markPointEnded(room,r,winner,'turnTimeout',`${side==='bottom'?'J1':'J2'} a dépassé les ${seconds} secondes de réflexion.`);
+  },seconds*1000+50);
 }
 function markPointEnded(room,r,winnerSide,reason,message){
   const st=r.state;
@@ -910,7 +914,7 @@ io.on('connection',socket=>{
     const room=makeCode(), state=makeInitialState();
     state.characterMode=characterMode==='on'?'on':'off';
     state.characters=characterState.createCharacters();
-    state.timerMode=timerMode==='match_point_30'?'match_point_30':'off';
+    state.timerMode=['match_point_30','full_60_30'].includes(timerMode)?timerMode:'off';
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
@@ -1416,7 +1420,7 @@ io.on('connection',socket=>{
     st.matchScore[winner]=Math.min(4,(Number(st.matchScore[winner])||0)+1);
 
     /* Le 3e point déclenche une seule fois l'entrée en "Coup de stress". */
-    if(st.timerMode==='match_point_30' && st.matchScore[winner]===3 && !st.matchPointTimerAnnounced){
+    if(['match_point_30','full_60_30'].includes(st.timerMode) && st.matchScore[winner]===3 && !st.matchPointTimerAnnounced){
       st.matchPointTimerAnnounced=true;
       io.to(room).emit('freshMatchPointTimerActivated',{state:st,side:winner,seconds:30});
     }
