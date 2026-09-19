@@ -603,7 +603,7 @@ function botActivatePower(st,power){
  const p=st.characterPowers?.top?.[power];if(!p||p.used)return false;
  p.used=true;p.active=true;
  if(power==='mathieu_free_move')st.mathieuExhaustion.top={stage:'first'};
- 
+ if(power==='jeanne_free_value')st.jeanneExhaustion.top={stage:'first'};
  return true;
 }
 
@@ -678,6 +678,22 @@ function botPowerDiagnostic(room,st,kind,pick){
  else if(!next) reason='AUCUN POUVOIR RESTANT';
  else reason='NON APPLICABLE À CETTE PHASE';
  botLog(room,`BOT DIAG [${kind}] — personnage=${character} ; prochain=${next?botPowerLabel(next):'aucun'} ; évalué=${considered?botPowerLabel(considered):'non'} ; normal=${normal} ; pouvoir=${powered} ; réserve=${reserve} ; décision=${reason}.`);
+}
+function botResolveExhaustion(room,r,kind){
+ const st=r.state,x=kind==='mathieu'?st.mathieuExhaustion?.top:st.jeanneExhaustion?.top;
+ const phase=kind==='mathieu'?'mathieuExhaustion':'jeanneExhaustion';
+ if(!r.botMode||st.pointEnded||st.phase!==phase||!x||x.stage!=='roll')return;
+ const roll=1+Math.floor(Math.random()*6),lost=kind==='mathieu'?roll<=3:roll>=4;
+ x.stage='done';x.used=true;
+ botLog(room,`BOT ${kind==='mathieu'?'Mathieu':'Jeanne'} — épuisement : D6 = ${roll} → ${lost?'POINT PERDU':'continue'}.`);
+ if(lost){
+   st.pointEnded=true;st.pointWinnerSide='bottom';st.pointEndReason=kind+'Exhaustion';
+   st.pointEndMessage=`Le BOT ${kind==='mathieu'?'Mathieu':'Jeanne'} échoue à son jet d’épuisement (D6 = ${roll}).`;
+   st.phase='pointEnded';
+ }else st.phase=x.resume;
+ io.to(room).emit(kind==='mathieu'?'freshMathieuRollResult':'freshJeanneRollResult',{state:st,side:'top',roll,lost});
+ if(lost)io.to(room).emit('freshPointEnded',{state:st,winnerSide:'bottom',reason:st.pointEndReason,message:st.pointEndMessage});
+ else scheduleBot(room,r);
 }
 function botEasyMoveChoice(st,target){
  const d=shortestDistance(st.opponentPaddleNode??'S',target);if(!Number.isFinite(d))return null;
@@ -778,6 +794,7 @@ function botResponse(room,r){
  st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
  /* La réponse du BOT fait avancer l'épuisement de Mathieu humain. Jeanne BOT reste sans épuisement pendant cette étape de test. */
  mathieuOpponentResponded(st,'top');
+ jeanneOpponentResponded(st,'top');
  
  const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost,characterPower:pick.power||null};st.boardPlays.push(action);
  const after=botProgress(st,'top');let e=null;
@@ -785,6 +802,8 @@ function botResponse(room,r){
  else if(!hasLegalResponse(st,'bottom'))e={winner:'top',reason:'noLegalResponse',message:'Vous n’avez aucune réponse légale.'};
  else{const d=shortestDistance(st.localPaddleNode??'S',c.finalValue);if(!canPayMoveDistance(d,st.localMovement,st.localEnergy))e={winner:'top',reason:'impossibleMovement',message:`Vous devez parcourir ${d} zone(s), mais ne pouvez pas payer le déplacement.`};}
  if(e){st.pointEnded=true;st.pointWinnerSide=e.winner;st.pointEndReason=e.reason;st.pointEndMessage=e.message;st.phase='pointEnded';}else st.phase='bottomMove';
+ let exhaustionHold=false;
+ if(!e) exhaustionHold=jeanneOwnerResponded(room,r,'top');
 
  botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Progression de son objectif : ${before} → ${after}.`);
  io.to(room).emit('freshTopResponseApplied',{state:st,action});
@@ -795,6 +814,7 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
  if(r.state.phase==='service'&&r.state.pointServerSide==='top')setTimeout(()=>botService(room,r),550);
  else if(r.state.phase==='topMove')setTimeout(()=>botMove(room,r),550);
  else if(r.state.phase==='topResponse')setTimeout(()=>botResponse(room,r),550);
+ else if(r.state.phase==='jeanneExhaustion'&&r.state.jeanneExhaustion?.top?.stage==='roll')setTimeout(()=>botResolveExhaustion(room,r,'jeanne'),550);
 }
 
 io.on('connection',socket=>{
