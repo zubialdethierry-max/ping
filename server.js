@@ -26,13 +26,6 @@ function shuffle(a){
 }
 
 function makeInitialState(){
-  if(st.jeanneExhaustion){
-    for(const side of ['top','bottom']){
-      const x=st.jeanneExhaustion[side];
-      if(x && x.stage!=='done'){x.stage='done';x.used=true;}
-    }
-  }
-
   const pingPiles=[];
   for(const color of ['jaune','vert','rouge']){
     const v=shuffle([1,2,3,4,5,6]);
@@ -206,6 +199,13 @@ function resetPointState(st){
       if(x && x.stage!=='done'){x.stage='done';x.used=true;}
     }
   }
+  if(st.jeanneExhaustion){
+    for(const side of ['top','bottom']){
+      const x=st.jeanneExhaustion[side];
+      if(x && x.stage!=='done'){x.stage='done';x.used=true;}
+    }
+  }
+
   const pingPiles=[];
   for(const color of ['jaune','vert','rouge']){
     const v=shuffle([1,2,3,4,5,6]);
