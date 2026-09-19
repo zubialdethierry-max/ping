@@ -14,8 +14,6 @@ app.get('/health',(req,res)=>{
 });
 
 const rooms=new Map();
-const characterState=require('./character-state-dev');
-const installCharacterSelection=require('./server-personnages-dev');
 
 function shuffle(a){
   a=[...a];
@@ -600,16 +598,9 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
 }
 
 io.on('connection',socket=>{
-  installCharacterSelection(socket,{io,rooms,scheduleBot});
-  socket.on('createRoom',({name,opponentType,characterMode})=>{
+  socket.on('createRoom',({name,opponentType})=>{
     const room=makeCode(), state=makeInitialState();
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
-    /* Le main actuel ne propose aucun personnage contre les BOTs.
-       Le mode est donc verrouillé côté serveur, quelle que soit la valeur envoyée
-       par le navigateur. Cela évite qu'un état personnage résiduel du frontend
-       puisse réactiver Mathieu/Jeanne dans une partie BOT. */
-    state.characterMode=botMode ? 'off' : (characterMode==='on'?'on':'off');
-    state.characters=characterState.createCharacters();
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
     if(botMode) players.push({id:'BOT',name:String(botDifficulty).startsWith('intermediate')?'BOT Intermédiaire V2':'BOT Facile',seat:'joiner',isBot:true});
