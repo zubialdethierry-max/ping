@@ -12,6 +12,7 @@
   style.textContent=`
    #pingTimerMode{margin-top:9px}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
    .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:#102c46;color:#fff;font-size:11px;font-weight:900;cursor:pointer}
+   #pingBlitzMinutes{display:none;margin-top:6px}
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
      font:900 14px Arial;text-align:center;box-shadow:0 4px 14px #0004}
@@ -24,16 +25,23 @@
    #pingTurnClock.mine{background:#fff7c9}#pingTurnClock.danger .time{font-size:34px}
    #pingStress{position:fixed;inset:0;z-index:23000;display:none;align-items:center;justify-content:center;background:#07111ed9;font-family:Arial,sans-serif}
    #pingStress.open{display:flex}.psBox{width:min(520px,88vw);background:white;color:#102c46;border:5px solid #102c46;border-radius:20px;padding:26px;text-align:center;box-shadow:0 18px 55px #0008}
-   .psTitle{font-size:32px;font-weight:1000;margin-bottom:10px}.psText{font-size:18px;font-weight:800;line-height:1.35}.psTime{font-size:48px;font-weight:1000;margin:13px 0}.psOk{padding:11px 26px;border:0;border-radius:9px;background:#102c46;color:white;font-size:16px;font-weight:900;cursor:pointer}
+   .psTitle{font-size:32px;font-weight:1000;margin-bottom:10px}
+   #pingBlitzClocks{position:fixed;z-index:17450;right:18px;top:50%;transform:translateY(-50%);display:none;gap:8px;flex-direction:column;width:150px;font-family:Arial,sans-serif}
+   #pingBlitzClocks.on{display:flex}.blitzClock{border:3px solid #102c46;border-radius:12px;background:#fff;padding:8px 10px;text-align:center;box-shadow:0 4px 14px #0004}
+   .blitzClock.inactive{opacity:.42;filter:grayscale(1);background:#e5e8eb}.blitzName{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.blitzTime{font-size:28px;font-weight:1000;line-height:1.1;margin-top:3px}
+   .blitzClock.active{opacity:1;filter:none}.blitzClock.mine.active{background:#fff7c9}.psText{font-size:18px;font-weight:800;line-height:1.35}.psTime{font-size:48px;font-weight:1000;margin:13px 0}.psOk{padding:11px 26px;border:0;border-radius:9px;background:#102c46;color:white;font-size:16px;font-weight:900;cursor:pointer}
   `;
   document.head.appendChild(style);
   const box=document.createElement('div');box.id='pingTimerMode';
-  box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 5 OU 10 MIN / JOUEUR (BIENTÔT)</option></select>';
+  box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 5 OU 10 MIN / JOUEUR</option></select><select id="pingBlitzMinutes" class="ptSelect"><option value="5">BLITZ — 5 MINUTES</option><option value="10">BLITZ — 10 MINUTES</option></select>';
   const join=document.getElementById('freshShowJoin');host.insertBefore(box,join);
   window.PING_TIMER_MODE='off';
   const select=box.querySelector('#pingTimerSelect');
-  select.onchange=()=>{window.PING_TIMER_MODE=select.value;};
+  const blitzSelect=box.querySelector('#pingBlitzMinutes');window.PING_BLITZ_MINUTES=5;
+  select.onchange=()=>{window.PING_TIMER_MODE=select.value;blitzSelect.style.display=select.value==='blitz'?'block':'none';};
+  blitzSelect.onchange=()=>{window.PING_BLITZ_MINUTES=Number(blitzSelect.value)||5;};
   const clock=document.createElement('div');clock.id='pingTurnClock';clock.innerHTML='<div class="who">COUP DE STRESS</div><div class="time">30 s</div>';document.body.appendChild(clock);
+  const bc=document.createElement('div');bc.id='pingBlitzClocks';bc.innerHTML='<div class="blitzClock" data-side="top"><div class="blitzName">J2</div><div class="blitzTime">05:00</div></div><div class="blitzClock" data-side="bottom"><div class="blitzName">J1</div><div class="blitzTime">05:00</div></div>';document.body.appendChild(bc);
   const stress=document.createElement('div');stress.id='pingStress';stress.innerHTML='<div class="psBox"><div class="psTitle">COUP DE STRESS !</div><div class="psText">Un joueur est à un point de la victoire.<br>Vous avez désormais</div><div class="psTime">30 SECONDES</div><div class="psText">par tour de jeu.</div><button class="psOk" type="button">JOUER</button></div>';document.body.appendChild(stress);
   stress.querySelector('.psOk').onclick=()=>stress.classList.remove('open');
  }
@@ -41,13 +49,28 @@
   const s=socket();if(!s||s.__pingTimerTransport)return false;
   const base=s.emit.bind(s);
   s.emit=function(event,...args){
-   if(event==='createRoom'){const d=args[0]&&typeof args[0]==='object'?{...args[0]}:{};d.timerMode=window.PING_TIMER_MODE||'off';args[0]=d;}
+   if(event==='createRoom'){const d=args[0]&&typeof args[0]==='object'?{...args[0]}:{};d.timerMode=window.PING_TIMER_MODE||'off';d.blitzMinutes=window.PING_BLITZ_MINUTES||5;args[0]=d;}
    return base(event,...args);
   };s.__pingTimerTransport=true;return true;
  }
  function sync(st){if(st)lastState=st;render();}
+ function fmt(ms){const s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60),r=s%60;return String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');}
+ function renderBlitz(){
+  const wrap=document.getElementById('pingBlitzClocks');if(!wrap)return;
+  if(lastState?.timerMode!=='blitz'||!lastState?.blitz){wrap.className='';return;}
+  wrap.className='on';const b=lastState.blitz,now=Date.now();
+  for(const s of ['top','bottom']){
+   const el=wrap.querySelector('[data-side="'+s+'"]'),name=lastState.playerNames?.[s]||(s==='bottom'?'J1':'J2');
+   let ms=Number(b.remaining?.[s])||0;if(b.activeSide===s&&b.startedAt)ms=Math.max(0,ms-(now-Number(b.startedAt)));
+   el.querySelector('.blitzName').textContent=name;el.querySelector('.blitzTime').textContent=fmt(ms);
+   el.className='blitzClock '+(b.activeSide===s?'active':'inactive')+(s===side()?' mine':'');
+  }
+  raf=requestAnimationFrame(render);
+ }
  function render(){
   cancelAnimationFrame(raf);
+  if(lastState?.timerMode==='blitz'){const tc=document.getElementById('pingTurnClock');if(tc)tc.className='';renderBlitz();return;}
+  const bw=document.getElementById('pingBlitzClocks');if(bw)bw.className='';
   const el=document.getElementById('pingTurnClock'),t=lastState?.turnTimer;
   if(!el)return;
   const mode=lastState?.timerMode;
@@ -73,7 +96,7 @@
   const bind=()=>{
     const s=socket();
     if(!s)return false;
-    if(!s.__pingTimerStateListener&&s.onAny){s.onAny((e,p)=>{if(p?.state)sync(p.state);if(e==='freshMatchPointTimerActivated')document.getElementById('pingStress')?.classList.add('open');});s.__pingTimerStateListener=true;}
+    if(!s.__pingTimerStateListener&&s.onAny){s.onAny((e,p)=>{if(p?.state)sync(p.state);if(e==='freshMatchPointTimerActivated')document.getElementById('pingStress')?.classList.add('open');if(e==='freshBlitzMatchLost'&&p?.message)alert(p.message);});s.__pingTimerStateListener=true;}
     return true;
   };
   if(!bind()){const q=setInterval(()=>{if(bind())clearInterval(q)},25);}
