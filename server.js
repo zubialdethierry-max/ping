@@ -771,6 +771,7 @@ function botResponse(room,r){
 function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)return;
  if(r.state.phase==='service'&&r.state.pointServerSide==='top')setTimeout(()=>botService(room,r),550);
  else if(r.state.phase==='topMove')setTimeout(()=>botMove(room,r),550);
+ else if(r.state.phase==='topResponse')setTimeout(()=>botResponse(room,r),550);
 }
 
 io.on('connection',socket=>{
