@@ -55,7 +55,11 @@ function makeInitialState(){
     pointEndReason:null,
     pointEndMessage:null,
     matchScore:{top:0,bottom:0},
-    pointServerSide:'bottom'
+    pointServerSide:'bottom',
+    characterPowers:{
+      top:{mathieu_energy_only:{used:false,active:false}},
+      bottom:{mathieu_energy_only:{used:false,active:false}}
+    }
   };
 }
 
@@ -648,6 +652,30 @@ io.on('connection',socket=>{
     Le client n'enlève plus lui-même la tuile : il demande au serveur,
     qui valide, modifie l'état commun, puis diffuse le résultat aux deux écrans.
   */
+  /* Mathieu — pouvoir 1 : version validée sur personnages-dev. */
+  socket.on('freshActivateCharacterPower',({room,power})=>{
+    room=String(room||'').trim();
+    const r=rooms.get(room);
+    if(!r) return socket.emit('roomError','Salle introuvable.');
+    const player=r.players.find(p=>p.id===socket.id);
+    if(!player) return socket.emit('roomError','Joueur introuvable.');
+    const side=player.seat==='joiner'?'top':'bottom';
+    const st=r.state;
+    if(st.characterMode!=='on') return socket.emit('roomError','Cette partie est sans personnages.');
+    if(power!=='mathieu_energy_only') return socket.emit('roomError','Pouvoir non disponible à cette étape.');
+    if(st.characters?.[side]!=='mathieu') return socket.emit('roomError','Ce pouvoir appartient à Mathieu.');
+    if(st.pointEnded || st.phase!==(side==='top'?'topMove':'bottomMove')) return socket.emit('roomError','Ce pouvoir s’utilise au moment du déplacement de votre raquette.');
+    const p=st.characterPowers?.[side]?.mathieu_energy_only;
+    if(!p || p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
+    const node=side==='top'?(st.opponentPaddleNode??'S'):(st.localPaddleNode??'S');
+    const energy=side==='top'?st.opponentEnergy:st.localEnergy;
+    const distance=shortestDistance(node,Number(st.lastPlayedValue));
+    if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
+    if(distance>energy) return socket.emit('roomError','Énergie insuffisante.');
+    p.used=true;p.active=true;
+    io.to(room).emit('freshCharacterPowerActivated',{state:st,side,power});
+  });
+
   socket.on('freshServiceAction',({room,pileIndex,finalValue})=>{
     room=String(room||'').trim();
     const r=rooms.get(room);
@@ -726,8 +754,12 @@ io.on('connection',socket=>{
     const distance=shortestDistance(st.opponentPaddleNode ?? 'S',targetValue);
     if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
 
+    const mathieuEnergyOnly=!!st.characterPowers?.top?.mathieu_energy_only?.active;
     if(distance===0){
       if(moveSpend!==0 || energySpend!==0) return socket.emit('roomError','Aucune dépense nécessaire.');
+    }else if(mathieuEnergyOnly){
+      if(moveSpend!==0 || energySpend!==distance) return socket.emit('roomError','Pouvoir Mathieu : paiement uniquement en énergie.');
+      if(energySpend>st.opponentEnergy) return socket.emit('roomError','Énergie insuffisante.');
     }else{
       if(!Number.isInteger(moveSpend) || moveSpend<1) return socket.emit('roomError','Au moins 1 déplacement est requis.');
       if(!Number.isInteger(energySpend) || energySpend<0) return socket.emit('roomError','Dépense énergie invalide.');
@@ -738,6 +770,7 @@ io.on('connection',socket=>{
     st.opponentMovement-=moveSpend;
     st.opponentEnergy-=energySpend;
     st.opponentPaddleNode=targetValue;
+    if(st.characterPowers?.top?.mathieu_energy_only) st.characterPowers.top.mathieu_energy_only.active=false;
 
     const endedAfterMove = maybeEndAfterMove(room,r,'top');
     if(!endedAfterMove) st.phase='topResponse';
@@ -853,8 +886,12 @@ io.on('connection',socket=>{
     const distance=shortestDistance(st.localPaddleNode ?? 'S',targetValue);
     if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
 
+    const mathieuEnergyOnly=!!st.characterPowers?.bottom?.mathieu_energy_only?.active;
     if(distance===0){
       if(moveSpend!==0 || energySpend!==0) return socket.emit('roomError','Aucune dépense nécessaire.');
+    }else if(mathieuEnergyOnly){
+      if(moveSpend!==0 || energySpend!==distance) return socket.emit('roomError','Pouvoir Mathieu : paiement uniquement en énergie.');
+      if(energySpend>st.localEnergy) return socket.emit('roomError','Énergie insuffisante.');
     }else{
       if(!Number.isInteger(moveSpend) || moveSpend<1) return socket.emit('roomError','Au moins 1 déplacement est requis.');
       if(!Number.isInteger(energySpend) || energySpend<0) return socket.emit('roomError','Dépense énergie invalide.');
@@ -865,6 +902,7 @@ io.on('connection',socket=>{
     st.localMovement-=moveSpend;
     st.localEnergy-=energySpend;
     st.localPaddleNode=targetValue;
+    if(st.characterPowers?.bottom?.mathieu_energy_only) st.characterPowers.bottom.mathieu_energy_only.active=false;
 
     const endedAfterMove = maybeEndAfterMove(room,r,'bottom');
     if(!endedAfterMove) st.phase='bottomResponse';
