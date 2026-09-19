@@ -29,7 +29,8 @@
    #pingBlitzClocks{position:fixed;z-index:17450;right:18px;top:50%;transform:translateY(-50%);display:none;gap:8px;flex-direction:column;width:150px;font-family:Arial,sans-serif}
    #pingBlitzClocks.on{display:flex}.blitzClock{border:3px solid #102c46;border-radius:12px;background:#fff;padding:8px 10px;text-align:center;box-shadow:0 4px 14px #0004}
    .blitzClock.inactive{opacity:.42;filter:grayscale(1);background:#e5e8eb}.blitzName{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.blitzTime{font-size:28px;font-weight:1000;line-height:1.1;margin-top:3px}
-   .blitzClock.active{opacity:1;filter:none}.blitzClock.mine.active{background:#fff7c9}.psText{font-size:18px;font-weight:800;line-height:1.35}.psTime{font-size:48px;font-weight:1000;margin:13px 0}.psOk{padding:11px 26px;border:0;border-radius:9px;background:#102c46;color:white;font-size:16px;font-weight:900;cursor:pointer}
+   .blitzClock.active{opacity:1;filter:none}.blitzClock.mine.active{background:#fff7c9}
+   .scoreBottomWrap #neutralConstraintToken{display:block!important;left:50%!important;top:155%!important;width:28%!important;transform:translate(-50%,-50%)!important;z-index:70!important}.psText{font-size:18px;font-weight:800;line-height:1.35}.psTime{font-size:48px;font-weight:1000;margin:13px 0}.psOk{padding:11px 26px;border:0;border-radius:9px;background:#102c46;color:white;font-size:16px;font-weight:900;cursor:pointer}
   `;
   document.head.appendChild(style);
   const box=document.createElement('div');box.id='pingTimerMode';
@@ -53,7 +54,15 @@
    return base(event,...args);
   };s.__pingTimerTransport=true;return true;
  }
- function sync(st){if(st)lastState=st;render();}
+ function relocateNeutralConstraint(){
+  const target=document.querySelector('.scoreBottomWrap');if(!target)return;
+  const tokens=[...document.querySelectorAll('#neutralConstraintToken')];
+  if(!tokens.length)return;
+  const keep=tokens[0];
+  for(let i=1;i<tokens.length;i++)tokens[i].remove();
+  if(keep.parentElement!==target)target.appendChild(keep);
+ }
+ function sync(st){if(st)lastState=st;relocateNeutralConstraint();render();}
  function fmt(ms){const s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60),r=s%60;return String(m).padStart(2,'0')+':'+String(r).padStart(2,'0');}
  function renderBlitz(){
   const wrap=document.getElementById('pingBlitzClocks');if(!wrap)return;
@@ -95,6 +104,9 @@
  }
  function boot(){
   install();
+  relocateNeutralConstraint();
+  const ntObs=new MutationObserver(()=>relocateNeutralConstraint());
+  ntObs.observe(document.body,{childList:true,subtree:true});
   if(!transport()){const q=setInterval(()=>{if(transport())clearInterval(q)},25);}
   const bind=()=>{
     const s=socket();
