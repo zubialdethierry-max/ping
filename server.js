@@ -26,6 +26,13 @@ function shuffle(a){
 }
 
 function makeInitialState(){
+  if(st.jeanneExhaustion){
+    for(const side of ['top','bottom']){
+      const x=st.jeanneExhaustion[side];
+      if(x && x.stage!=='done'){x.stage='done';x.used=true;}
+    }
+  }
+
   const pingPiles=[];
   for(const color of ['jaune','vert','rouge']){
     const v=shuffle([1,2,3,4,5,6]);
@@ -60,7 +67,8 @@ function makeInitialState(){
       top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false},jeanne_free_value:{used:false,active:false}},
       bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false},jeanne_free_value:{used:false,active:false}}
     },
-    mathieuExhaustion:{top:null,bottom:null}
+    mathieuExhaustion:{top:null,bottom:null},
+    jeanneExhaustion:{top:null,bottom:null}
   };
 }
 
@@ -295,6 +303,26 @@ function maybeEndAfterMove(room,r,movingSide){
   return false;
 }
 
+
+function jeanneOpponentResponded(st,side){
+  const owner=side==='top'?'bottom':'top';
+  const x=st.jeanneExhaustion&&st.jeanneExhaustion[owner];
+  if(x&&x.stage==='waitOpponent') x.stage='waitOwner';
+}
+function jeanneOwnerResponded(room,r,side){
+  const st=r.state;
+  const x=st.jeanneExhaustion&&st.jeanneExhaustion[side];
+  if(!x) return false;
+  if(x.stage==='first'){x.stage='waitOpponent';return false;}
+  if(x.stage==='waitOwner'){
+    x.stage='roll';
+    x.resume=side==='bottom'?'topMove':'bottomMove';
+    st.phase='jeanneExhaustion';
+    io.to(room).emit('freshJeanneExhaustionPending',{state:st,side});
+    return true;
+  }
+  return false;
+}
 
 function mathieuOpponentResponded(st,side){
   const owner=side==='top'?'bottom':'top';
@@ -701,6 +729,7 @@ io.on('connection',socket=>{
     if(power==='jeanne_pm2' && !powers?.jeanne_pm1?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');
     if(power==='jeanne_free_value' && !powers?.jeanne_pm2?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 2.');
     p.used=true;p.active=true;
+    if(power==='jeanne_free_value') st.jeanneExhaustion[side]={stage:'first'};
     io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});
   });
 
@@ -730,6 +759,24 @@ io.on('connection',socket=>{
     p.used=true;p.active=true;
     if(power==='mathieu_free_move') st.mathieuExhaustion[side]={stage:'first'};
     io.to(room).emit('freshCharacterPowerActivated',{state:st,side,power});
+  });
+
+  socket.on('freshJeanneRoll',({room})=>{
+    room=String(room||'').trim();
+    const r=rooms.get(room);if(!r)return;
+    const player=r.players.find(p=>p.id===socket.id);if(!player)return;
+    const side=player.seat==='joiner'?'top':'bottom',st=r.state,x=st.jeanneExhaustion&&st.jeanneExhaustion[side];
+    if(st.characters?.[side]!=='jeanne'||!x||x.stage!=='roll'||st.phase!=='jeanneExhaustion')return;
+    const roll=1+Math.floor(Math.random()*6),lost=roll>=4;
+    x.stage='done';x.used=true;
+    if(lost){st.pointEnded=true;st.pointWinnerSide=side==='top'?'bottom':'top';st.pointEndReason='jeanneExhaustion';st.pointEndMessage='Votre balle sort du plateau, vous perdez le point';st.phase='pointEnded';}
+    else st.phase=x.resume;
+    io.to(room).emit('freshJeanneRollResult',{state:st,side,roll,lost});
+  });
+  socket.on('freshJeanneRollValidated',({room})=>{
+    room=String(room||'').trim();const r=rooms.get(room);if(!r)return;const st=r.state;
+    if(st.pointEnded) io.to(room).emit('freshPointEnded',{state:st,winnerSide:st.pointWinnerSide,reason:st.pointEndReason,message:st.pointEndMessage});
+    else scheduleBot(room,r);
   });
 
   socket.on('freshMathieuRoll',({room})=>{
@@ -919,6 +966,7 @@ io.on('connection',socket=>{
     st.lastPlayedValue=finalValue;
     st.blockedColor=pile.color;
     mathieuOpponentResponded(st,'top');
+    jeanneOpponentResponded(st,'top');
 
     const action={
       type:'topResponse',
@@ -955,7 +1003,10 @@ io.on('connection',socket=>{
       st.phase='bottomMove';
     }
 
-    if(!endSpec) mathieuOwnerResponded(room,r,'top');
+    if(!endSpec){
+      mathieuOwnerResponded(room,r,'top');
+      jeanneOwnerResponded(room,r,'top');
+    }
     io.to(room).emit('freshTopResponseApplied',{state:st,action});
     if(endSpec){
       io.to(room).emit('freshPointEnded',{
@@ -1061,6 +1112,7 @@ io.on('connection',socket=>{
     st.lastPlayedValue=finalValue;
     st.blockedColor=pile.color;
     mathieuOpponentResponded(st,'bottom');
+    jeanneOpponentResponded(st,'bottom');
 
     const action={
       type:'bottomResponse',
@@ -1097,7 +1149,7 @@ io.on('connection',socket=>{
       st.phase='topMove';
     }
 
-    const exhaustionHold=!endSpec&&mathieuOwnerResponded(room,r,'bottom');
+    const exhaustionHold=!endSpec&&(mathieuOwnerResponded(room,r,'bottom')||jeanneOwnerResponded(room,r,'bottom'));
     io.to(room).emit('freshBottomResponseApplied',{state:st,action});
     if(!exhaustionHold) scheduleBot(room,r);
     if(endSpec){
