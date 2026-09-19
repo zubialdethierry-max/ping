@@ -10,8 +10,8 @@
   const host=document.getElementById('pingModeChoice');if(!host)return;
   const style=document.createElement('style');
   style.textContent=`
-   #pingTimerMode{margin-top:9px}.pingModeButtons button.pingGameModeSelected{background:#fff!important;color:#102c46!important}.pingLobbyActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.pingLobbyActions button{margin:0!important;width:100%;padding:8px!important}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
-   .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:#102c46;color:#fff;font-size:11px;font-weight:900;cursor:pointer}
+   #pingTimerMode{margin-top:9px}.pingModeButtons button.pingGameModeSelected{background:rgba(230,45,45,.78)!important;color:#fff!important;border-color:rgba(255,255,255,.95)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)!important}.pingLobbyActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.pingLobbyActions button{margin:0!important;width:100%;padding:8px!important}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
+   .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:rgba(230,45,45,.78);color:#fff;font-size:11px;font-weight:900;cursor:pointer}
    #pingBlitzMinutes{display:none;margin-top:6px}
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
@@ -46,6 +46,14 @@
   const paintMode=()=>modes.forEach(([b,v])=>b&&b.classList.toggle('pingGameModeSelected',v===selectedOpponent));
   modes.forEach(([b,v])=>{if(!b)return;b.addEventListener('click',ev=>{ev.preventDefault();ev.stopImmediatePropagation();selectedOpponent=v;paintMode();},true);});
   paintMode();
+  /* Même code visuel pour la sélection Personnages. */
+  const paintCharacters=()=>{
+   const off=document.getElementById('pingCharactersOff')||document.getElementById('freshCharactersOff')||[...host.querySelectorAll('button')].find(b=>/SANS PERSONNAGES/i.test(b.textContent||''));
+   const on=document.getElementById('pingCharactersOn')||document.getElementById('freshCharactersOn')||[...host.querySelectorAll('button')].find(b=>/AVEC PERSONNAGES/i.test(b.textContent||''));
+   const enabled=window.PING_CHARACTERS_MODE==='on';
+   [off,on].forEach((b,i)=>{if(!b)return;b.style.setProperty('background',(i===1)===enabled?'rgba(230,45,45,.78)':'#fff','important');b.style.setProperty('color',(i===1)===enabled?'#fff':'#102c46','important');});
+  };
+  host.addEventListener('click',()=>requestAnimationFrame(paintCharacters));paintCharacters();
   const actions=document.createElement('div');actions.className='pingLobbyActions';
   const create=document.createElement('button');create.id='pingCreateConfigured';create.className='primary';create.type='button';create.textContent='CRÉER LA PARTIE';
   if(join){join.classList.remove('pingJoinButton');join.parentElement.insertBefore(actions,join);actions.append(create,join);}
