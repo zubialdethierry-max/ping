@@ -658,6 +658,23 @@ function botChooseJeanneShot(st,isService,difficulty){
  const use=powerScore>normalScore+botPowerReserve(st,power);
  return {choice:use?best:normalChoice,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:false};
 }
+
+function botPowerDiagnostic(room,st,kind,pick){
+ const character=st?.characters?.top||'AUCUN';
+ const next=botNextPower(st);
+ const considered=pick?.powerConsidered||null;
+ const chosen=pick?.power||null;
+ const normal=Number.isFinite(pick?.normalScore)?pick.normalScore.toFixed(1):(pick?.normalScore===-Infinity?'aucun coup':'n/a');
+ const powered=Number.isFinite(pick?.powerScore)?pick.powerScore.toFixed(1):'n/a';
+ const reserve=considered?botPowerReserve(st,considered).toFixed(1):'n/a';
+ let reason;
+ if(!botCharactersEnabled(st)) reason='PERSONNAGE/POUVOIRS NON ACTIFS';
+ else if(chosen) reason=pick?.forced?'UTILISÉ — seul coup possible':'UTILISÉ — gain suffisant';
+ else if(considered) reason='CONSERVÉ — gain insuffisant';
+ else if(!next) reason='AUCUN POUVOIR RESTANT';
+ else reason='NON APPLICABLE À CETTE PHASE';
+ botLog(room,`BOT DIAG [${kind}] — personnage=${character} ; prochain=${next?botPowerLabel(next):'aucun'} ; évalué=${considered?botPowerLabel(considered):'non'} ; normal=${normal} ; pouvoir=${powered} ; réserve=${reserve} ; décision=${reason}.`);
+}
 function botEasyMoveChoice(st,target){
  const d=shortestDistance(st.opponentPaddleNode??'S',target);if(!Number.isFinite(d))return null;
  if(d===0)return{choice:{targetValue:+target,moveSpend:0,energySpend:0,distance:0,mode:'easy'},options:[{targetValue:+target,moveSpend:0,energySpend:0,distance:0,rank:1,mode:'easy'}]};
