@@ -630,10 +630,8 @@ function botChooseMathieuMove(st,target,difficulty){
  if(!normalMove)return {choice:{...best.payment,power},normal,power,forced:true,powerScore:best.score,normalScore:-Infinity};
  let powerScore=best.score;if(power==='mathieu_free_move'&&!best.finish)powerScore-=180;
  const normalScore=normalEval?.score??-Infinity;
- /* TEST TEMPORAIRE : Mathieu BOT utilise P1, P2 puis P3 à la première occasion légale. */
- const forceMathieuPowersForTest=true;
- const use=forceMathieuPowersForTest||powerScore>normalScore+botPowerReserve(st,power);
- return {choice:use?{...best.payment,power}:normalMove,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:forceMathieuPowersForTest};
+ const use=powerScore>normalScore+botPowerReserve(st,power);
+ return {choice:use?{...best.payment,power}:normalMove,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:false};
 }
 function botActivatePower(st,power){
  const p=st.characterPowers?.top?.[power];if(!p||p.used)return false;
@@ -872,7 +870,9 @@ io.on('connection',socket=>{
     if(!characterState.choose(r.state,side,character))return socket.emit('roomError','Choix de personnage invalide.');
     io.to(room).emit('freshCharacterChosen',{state:r.state,side,character});
     if(r.botMode && r.state.characterMode==='on' && side==='bottom' && !r.state.characters.top){
-      const botCharacter=character==='mathieu'?'jeanne':'mathieu';
+      /* Tirage indépendant : le BOT peut obtenir le même personnage que l'humain. */
+      const botCharacters=['mathieu','jeanne'];
+      const botCharacter=botCharacters[Math.floor(Math.random()*botCharacters.length)];
       r.state.characters.top=botCharacter;
       io.to(room).emit('freshCharacterChosen',{state:r.state,side:'top',character:botCharacter});
     }
