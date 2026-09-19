@@ -826,6 +826,7 @@ function botService(room,r){
  const action={type:'service',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost,characterPower:pick.power||null};st.boardPlays.push(action);
  botLog(room,`Service : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Il vise son objectif ${st.playerObjectives.top} et voit votre objectif ${st.playerObjectives.bottom}.`);
  io.to(room).emit('freshServiceApplied',{state:st,action});
+ startTurnTimer(room,r,'bottom');
 }
 function botMove(room,r){
  const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;
@@ -865,7 +866,7 @@ function botResponse(room,r){
  if(objectiveComplete(st,'top'))e={winner:'top',reason:'objective',message:'Le BOT complète son objectif.'};
  else if(!hasLegalResponse(st,'bottom'))e={winner:'top',reason:'noLegalResponse',message:'Vous n’avez aucune réponse légale.'};
  else{const d=shortestDistance(st.localPaddleNode??'S',c.finalValue);if(!canPayMoveDistance(d,st.localMovement,st.localEnergy))e={winner:'top',reason:'impossibleMovement',message:`Vous devez parcourir ${d} zone(s), mais ne pouvez pas payer le déplacement.`};}
- if(e){st.pointEnded=true;st.pointWinnerSide=e.winner;st.pointEndReason=e.reason;st.pointEndMessage=e.message;st.phase='pointEnded';}else st.phase='bottomMove';
+ if(e){clearTurnTimer(r);st.pointEnded=true;st.pointWinnerSide=e.winner;st.pointEndReason=e.reason;st.pointEndMessage=e.message;st.phase='pointEnded';}else st.phase='bottomMove';
  let exhaustionHold=false;
  if(!e) exhaustionHold=mathieuOwnerResponded(room,r,'top')||jeanneOwnerResponded(room,r,'top');
 
@@ -1228,6 +1229,7 @@ io.on('connection',socket=>{
     }
 
     if(endSpec){
+      clearTurnTimer(r);
       st.pointEnded=true;
       st.pointWinnerSide=endSpec.winner;
       st.pointEndReason=endSpec.reason;
@@ -1237,10 +1239,8 @@ io.on('connection',socket=>{
       st.phase='bottomMove';
     }
 
-    if(!endSpec){
-      mathieuOwnerResponded(room,r,'top');
-      jeanneOwnerResponded(room,r,'top');
-    }
+    let exhaustionHold=false;
+    if(!endSpec) exhaustionHold=mathieuOwnerResponded(room,r,'top')||jeanneOwnerResponded(room,r,'top');
     io.to(room).emit('freshTopResponseApplied',{state:st,action});
     if(!endSpec&&!exhaustionHold) startTurnTimer(room,r,'bottom');
     if(endSpec){
