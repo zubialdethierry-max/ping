@@ -59,7 +59,8 @@ function makeInitialState(){
     characterPowers:{
       top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}},
       bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}}
-    }
+    },
+    mathieuExhaustion:{top:null,bottom:null}
   };
 }
 
@@ -189,6 +190,14 @@ function objectiveComplete(st,side){
 
 
 function resetPointState(st){
+  /* Le FILET de Mathieu est consommé dès que P3 a été déclenché,
+     même si le point se termine avant le lancer d'épuisement. */
+  if(st.mathieuExhaustion){
+    for(const side of ['top','bottom']){
+      const x=st.mathieuExhaustion[side];
+      if(x && x.stage!=='done'){x.stage='done';x.used=true;}
+    }
+  }
   const pingPiles=[];
   for(const color of ['jaune','vert','rouge']){
     const v=shuffle([1,2,3,4,5,6]);
@@ -286,6 +295,26 @@ function maybeEndAfterMove(room,r,movingSide){
   return false;
 }
 
+
+function mathieuOpponentResponded(st,side){
+  const owner=side==='top'?'bottom':'top';
+  const x=st.mathieuExhaustion&&st.mathieuExhaustion[owner];
+  if(x&&x.stage==='waitOpponent') x.stage='waitOwner';
+}
+function mathieuOwnerResponded(room,r,side){
+  const st=r.state;
+  const x=st.mathieuExhaustion&&st.mathieuExhaustion[side];
+  if(!x) return false;
+  if(x.stage==='first'){x.stage='waitOpponent';return false;}
+  if(x.stage==='waitOwner'){
+    x.stage='roll';
+    x.resume=side==='bottom'?'topMove':'bottomMove';
+    st.phase='mathieuExhaustion';
+    io.to(room).emit('freshMathieuExhaustionPending',{state:st,side});
+    return true;
+  }
+  return false;
+}
 
 /* V0.25 BOT : siège J2/top, objectifs des deux joueurs visibles. */
 function botLog(room,text){io.to(room).emit('freshBotLog',{text});}
@@ -676,7 +705,32 @@ io.on('connection',socket=>{
     if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
     if(power==='mathieu_energy_only' && distance>energy) return socket.emit('roomError','Énergie insuffisante.');
     p.used=true;p.active=true;
+    if(power==='mathieu_free_move') st.mathieuExhaustion[side]={stage:'first'};
     io.to(room).emit('freshCharacterPowerActivated',{state:st,side,power});
+  });
+
+  socket.on('freshMathieuRoll',({room})=>{
+    room=String(room||'').trim();
+    const r=rooms.get(room); if(!r)return;
+    const player=r.players.find(p=>p.id===socket.id); if(!player)return;
+    const side=player.seat==='joiner'?'top':'bottom',st=r.state,x=st.mathieuExhaustion&&st.mathieuExhaustion[side];
+    if(!x||x.stage!=='roll'||st.phase!=='mathieuExhaustion')return;
+    const roll=1+Math.floor(Math.random()*6),lost=roll<=3;
+    x.stage='done';x.used=true;
+    if(lost){
+      st.pointEnded=true;st.pointWinnerSide=side==='top'?'bottom':'top';
+      st.pointEndReason='mathieuExhaustion';
+      st.pointEndMessage='Mathieu est épuisé : D6 = '+roll+'. Le point est perdu.';
+      st.phase='pointEnded';
+    }else st.phase=x.resume;
+    io.to(room).emit('freshMathieuRollResult',{state:st,side,roll,lost});
+  });
+  socket.on('freshMathieuRollValidated',({room})=>{
+    room=String(room||'').trim();
+    const r=rooms.get(room);if(!r)return;
+    const st=r.state;
+    if(st.pointEnded) io.to(room).emit('freshPointEnded',{state:st,winnerSide:st.pointWinnerSide,reason:st.pointEndReason,message:st.pointEndMessage});
+    else scheduleBot(room,r);
   });
 
   socket.on('freshServiceAction',({room,pileIndex,finalValue})=>{
@@ -827,6 +881,7 @@ io.on('connection',socket=>{
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
     st.blockedColor=pile.color;
+    mathieuOpponentResponded(st,'top');
 
     const action={
       type:'topResponse',
@@ -863,6 +918,7 @@ io.on('connection',socket=>{
       st.phase='bottomMove';
     }
 
+    if(!endSpec) mathieuOwnerResponded(room,r,'top');
     io.to(room).emit('freshTopResponseApplied',{state:st,action});
     if(endSpec){
       io.to(room).emit('freshPointEnded',{
@@ -960,6 +1016,7 @@ io.on('connection',socket=>{
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
     st.blockedColor=pile.color;
+    mathieuOpponentResponded(st,'bottom');
 
     const action={
       type:'bottomResponse',
@@ -996,8 +1053,9 @@ io.on('connection',socket=>{
       st.phase='topMove';
     }
 
+    const exhaustionHold=!endSpec&&mathieuOwnerResponded(room,r,'bottom');
     io.to(room).emit('freshBottomResponseApplied',{state:st,action});
-    scheduleBot(room,r);
+    if(!exhaustionHold) scheduleBot(room,r);
     if(endSpec){
       io.to(room).emit('freshPointEnded',{
         state:st,winnerSide:endSpec.winner,reason:endSpec.reason,message:endSpec.message
