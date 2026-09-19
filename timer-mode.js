@@ -11,8 +11,7 @@
   const style=document.createElement('style');
   style.textContent=`
    #pingTimerMode{margin-top:9px}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
-   .ptChoices{display:flex;gap:5px}.ptChoices button{flex:1;padding:7px 5px;font-size:10px}
-   .ptChosen{background:#fff!important;color:#102c46!important}
+   .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:#102c46;color:#fff;font-size:11px;font-weight:900;cursor:pointer}
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
      font:900 14px Arial;text-align:center;box-shadow:0 4px 14px #0004}
@@ -25,10 +24,11 @@
   `;
   document.head.appendChild(style);
   const box=document.createElement('div');box.id='pingTimerMode';
-  box.innerHTML='<div class="ptLabel">CHRONOMÈTRE</div><div class="ptChoices"><button type="button" data-t="off" class="secondary ptChosen">NORMAL</button><button type="button" data-t="match_point_30" class="secondary">BALLE DE MATCH · 30 S</button></div>';
+  box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 5 OU 10 MIN / JOUEUR (BIENTÔT)</option></select>';
   const join=document.getElementById('freshShowJoin');host.insertBefore(box,join);
   window.PING_TIMER_MODE='off';
-  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{window.PING_TIMER_MODE=b.dataset.t;box.querySelectorAll('button').forEach(x=>x.classList.toggle('ptChosen',x===b));});
+  const select=box.querySelector('#pingTimerSelect');
+  select.onchange=()=>{window.PING_TIMER_MODE=select.value;};
   const clock=document.createElement('div');clock.id='pingTurnClock';clock.innerHTML='<div class="who">COUP DE STRESS</div><div class="time">30 s</div>';document.body.appendChild(clock);
   const stress=document.createElement('div');stress.id='pingStress';stress.innerHTML='<div class="psBox"><div class="psTitle">COUP DE STRESS !</div><div class="psText">Un joueur est à un point de la victoire.<br>Vous avez désormais</div><div class="psTime">30 SECONDES</div><div class="psText">par tour de jeu.</div><button class="psOk" type="button">JOUER</button></div>';document.body.appendChild(stress);
   stress.querySelector('.psOk').onclick=()=>stress.classList.remove('open');
@@ -46,11 +46,14 @@
   cancelAnimationFrame(raf);
   const el=document.getElementById('pingTurnClock'),t=lastState?.turnTimer;
   if(!el)return;
-  if(lastState?.timerMode!=='match_point_30'){el.className='';return;}
+  const mode=lastState?.timerMode;
+  if(!['match_point_30','full_60_30'].includes(mode)){el.className='';return;}
+  const high=Math.max(Number(lastState?.matchScore?.top)||0,Number(lastState?.matchScore?.bottom)||0);
+  const baseSeconds=high>=3?30:(mode==='full_60_30'?60:30);
   if(!t?.activeSide||!t?.deadline){
     el.className='waiting';
-    el.querySelector('.who').textContent=lastState?.matchPointTimerAnnounced?'EN ATTENTE':'COUP DE STRESS';
-    el.querySelector('.time').textContent='30 s';
+    el.querySelector('.who').textContent=high>=3?'EN ATTENTE':(mode==='full_60_30'?'CHRONO':'COUP DE STRESS');
+    el.querySelector('.time').textContent=baseSeconds+' s';
     return;
   }
   const left=Math.max(0,Math.ceil((Number(t.deadline)-Date.now())/1000));
