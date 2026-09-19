@@ -808,6 +808,7 @@ function botResponse(room,r){
  botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Progression de son objectif : ${before} → ${after}.`);
  io.to(room).emit('freshTopResponseApplied',{state:st,action});
  if(e)io.to(room).emit('freshPointEnded',{state:st,winnerSide:e.winner,reason:e.reason,message:e.message});
+ else if(exhaustionHold) scheduleBot(room,r);
 
 }
 function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)return;
