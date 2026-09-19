@@ -63,7 +63,8 @@ function makeInitialState(){
     mathieuExhaustion:{top:null,bottom:null},
     jeanneExhaustion:{top:null,bottom:null},
     timerMode:'off',
-    turnTimer:{activeSide:null,deadline:null,seconds:30}
+    turnTimer:{activeSide:null,deadline:null,seconds:30},
+    blitz:{initialMs:0,remaining:{top:0,bottom:0},activeSide:null,startedAt:null}
   };
 }
 
@@ -255,12 +256,41 @@ function timerSecondsForState(st){
   if(st?.timerMode==='full_60_30') return high>=3?30:60;
   return 0;
 }
+function blitzCommit(r){
+  const st=r?.state,b=st?.blitz;if(!b?.activeSide||!b.startedAt)return;
+  const side=b.activeSide,elapsed=Math.max(0,Date.now()-b.startedAt);
+  b.remaining[side]=Math.max(0,(Number(b.remaining[side])||0)-elapsed);
+  b.startedAt=Date.now();
+}
+function clearBlitz(r){
+  if(r?.blitzHandle){clearTimeout(r.blitzHandle);r.blitzHandle=null;}
+  const b=r?.state?.blitz;if(!b)return;
+  blitzCommit(r);b.activeSide=null;b.startedAt=null;
+}
+function startBlitz(room,r,side){
+  const st=r?.state,b=st?.blitz;if(st?.timerMode!=='blitz'||!b||st.pointEnded||st.phase==='service'||st.phase==='matchEnded')return;
+  clearBlitz(r);
+  const ms=Math.max(0,Number(b.remaining[side])||0);
+  b.activeSide=side;b.startedAt=Date.now();
+  io.to(room).emit('freshBlitzTimer',{state:st});
+  if(ms<=0)return blitzTimeout(room,r,side);
+  r.blitzHandle=setTimeout(()=>blitzTimeout(room,r,side),ms+30);
+}
+function blitzTimeout(room,r,side){
+  const st=r?.state,b=st?.blitz;if(st?.timerMode!=='blitz'||!b||b.activeSide!==side)return;
+  blitzCommit(r);if(b.remaining[side]>0)return startBlitz(room,r,side);
+  clearBlitz(r);b.remaining[side]=0;
+  st.pointEnded=false;st.phase='matchEnded';st.matchWinnerSide=side==='bottom'?'top':'bottom';
+  const loser=st.playerNames?.[side]||(side==='bottom'?'J1':'J2');
+  io.to(room).emit('freshBlitzMatchLost',{state:st,loserSide:side,winnerSide:st.matchWinnerSide,message:`${loser} n’a plus de temps : partie perdue.`});
+}
 function clearTurnTimer(r){
   if(r?.turnTimerHandle){clearTimeout(r.turnTimerHandle);r.turnTimerHandle=null;}
   if(r?.state?.turnTimer){r.state.turnTimer.activeSide=null;r.state.turnTimer.deadline=null;}
 }
 function startTurnTimer(room,r,side){
   const st=r?.state;if(!st)return;
+  if(st.timerMode==='blitz')return startBlitz(room,r,side);
   clearTurnTimer(r);
   const seconds=timerSecondsForState(st);
   if(!seconds||st.pointEnded||st.phase==='service'||st.phase==='matchEnded')return;
@@ -278,6 +308,7 @@ function startTurnTimer(room,r,side){
 }
 function markPointEnded(room,r,winnerSide,reason,message){
   const st=r.state;
+  clearBlitz(r);
   if(!st || st.pointEnded) return false;
   clearTurnTimer(r);
   st.pointEnded=true;
@@ -910,16 +941,21 @@ io.on('connection',socket=>{
     }
   });
 
-  socket.on('createRoom',({name,opponentType,characterMode,timerMode})=>{
+  socket.on('createRoom',({name,opponentType,characterMode,timerMode,blitzMinutes})=>{
     const room=makeCode(), state=makeInitialState();
     state.characterMode=characterMode==='on'?'on':'off';
     state.characters=characterState.createCharacters();
-    state.timerMode=['match_point_30','full_60_30'].includes(timerMode)?timerMode:'off';
+    state.timerMode=['match_point_30','full_60_30','blitz'].includes(timerMode)?timerMode:'off';
+    if(state.timerMode==='blitz'){
+      const mins=Number(blitzMinutes)===10?10:5;
+      state.blitz={initialMs:mins*60000,remaining:{top:mins*60000,bottom:mins*60000},activeSide:null,startedAt:null};
+    }
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
     if(botMode) players.push({id:'BOT',name:String(botDifficulty).startsWith('intermediate')?'BOT Intermédiaire V2':'BOT Facile',seat:'joiner',isBot:true});
     rooms.set(room,{state,host:socket.id,players,botMode,botDifficulty});
+    state.playerNames={bottom:String(name||'J1'),top:botMode?players[1].name:'J2'};
     socket.join(room);
     socket.emit('roomCreated',{room,seat:'host',name,state,botMode,botDifficulty});
     if(botMode) io.to(room).emit('roomReady',{
@@ -936,6 +972,7 @@ io.on('connection',socket=>{
     if(r.botMode) return socket.emit('roomError','Cette salle est une partie contre le bot.');
     if(r.players.length>=2) return socket.emit('roomError','Salle déjà complète.');
     r.players.push({id:socket.id,name,seat:'joiner'});
+    r.state.playerNames.top=String(name||'J2');
     socket.join(room);
     socket.emit('roomJoined',{room,seat:'joiner',name,state:r.state});
     io.to(room).emit('roomReady',{room,state:r.state,players:r.players.map(p=>({name:p.name,seat:p.seat}))});
@@ -1412,6 +1449,7 @@ io.on('connection',socket=>{
     const st=r.state;
     if(!st || !st.pointEnded || st.phase!=='pointEnded') return;
     clearTurnTimer(r);
+    clearBlitz(r);
 
     const winner=st.pointWinnerSide;
     if(winner!=='top' && winner!=='bottom') return;
