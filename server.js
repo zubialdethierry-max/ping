@@ -599,6 +599,42 @@ function botNextPower(st){
  return null;
 }
 
+function botMathieuPayments(st,power){
+ const raw=shortestDistance(st.opponentPaddleNode??'S',Number(st.lastPlayedValue));
+ if(!Number.isFinite(raw))return [];
+ let d=raw;
+ if(power==='mathieu_reduce1')d=Math.max(0,raw-1);
+ if(power==='mathieu_free_move')return [{moveSpend:0,energySpend:0,distance:0,rawDistance:raw}];
+ if(power==='mathieu_energy_only')return raw<=st.opponentEnergy?[{moveSpend:0,energySpend:raw,distance:raw,rawDistance:raw}]:[];
+ if(d===0)return [{moveSpend:0,energySpend:0,distance:0,rawDistance:raw}];
+ const out=[];for(let m=1;m<=d;m++){const e=d-m;if(m<=st.opponentMovement&&e<=st.opponentEnergy)out.push({moveSpend:m,energySpend:e,distance:d,rawDistance:raw});}
+ return out;
+}
+function botEvaluateMoveAndReply(st,payment,difficulty){
+ const s=JSON.parse(JSON.stringify(st));
+ s.opponentMovement-=payment.moveSpend;s.opponentEnergy-=payment.energySpend;s.opponentPaddleNode=Number(st.lastPlayedValue);s.phase='topResponse';
+ const z=botShot(s,false,difficulty),shot=z.choice;
+ if(!shot)return {score:-Infinity,payment,shot:null,finish:false};
+ const score=botV3LikeScore(s,shot),f=botVirtualShotResult(s,shot);
+ return {score,payment,shot,finish:!!f?.finish};
+}
+function botChooseMathieuMove(st,target,difficulty){
+ const normal=botMoveChoice(st,target,difficulty),normalMove=normal&&normal.choice;
+ if(!botCharactersEnabled(st)||st.characters.top!=='mathieu')return {choice:normalMove,normal,power:null};
+ const power=botNextPower(st);
+ if(!power||!power.startsWith('mathieu_'))return {choice:normalMove,normal,power:null};
+ let normalEval=null;if(normalMove)normalEval=botEvaluateMoveAndReply(st,normalMove,difficulty);
+ const evals=botMathieuPayments(st,power).map(p=>botEvaluateMoveAndReply(st,p,difficulty)).filter(x=>Number.isFinite(x.score));
+ evals.sort((a,b)=>b.score-a.score||a.payment.energySpend-b.payment.energySpend||b.payment.moveSpend-a.payment.moveSpend);
+ const best=evals[0]||null;if(!best)return {choice:normalMove,normal,power:null};
+ if(!normalMove)return {choice:{...best.payment,power},normal,power,forced:true,powerScore:best.score,normalScore:-Infinity};
+ let powerScore=best.score;if(power==='mathieu_free_move'&&!best.finish)powerScore-=180;
+ const normalScore=normalEval?.score??-Infinity;
+ /* TEST TEMPORAIRE : Mathieu BOT utilise P1, P2 puis P3 à la première occasion légale. */
+ const forceMathieuPowersForTest=true;
+ const use=forceMathieuPowersForTest||powerScore>normalScore+botPowerReserve(st,power);
+ return {choice:use?{...best.payment,power}:normalMove,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:forceMathieuPowersForTest};
+}
 function botActivatePower(st,power){
  const p=st.characterPowers?.top?.[power];if(!p||p.used)return false;
  p.used=true;p.active=true;
@@ -768,12 +804,20 @@ function botService(room,r){
  io.to(room).emit('freshServiceApplied',{state:st,action});
 }
 function botMove(room,r){
- const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;const mz=botMoveChoice(st,+st.lastPlayedValue,r.botDifficulty),m=mz&&mz.choice;
+ const st=r.state;if(!r.botMode||st.pointEnded||st.phase!=='topMove')return;
+ const pick=botChooseMathieuMove(st,+st.lastPlayedValue,r.botDifficulty),m=pick.choice;
+ botPowerDiagnostic(room,st,'déplacement',pick);
  if(!m){markPointEnded(room,r,'bottom','impossibleMovement','Le BOT ne peut pas payer le déplacement requis.');return;}
- botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:mz.options||[]},r.botDifficulty);
- st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=m.targetValue;const ended=maybeEndAfterMove(room,r,'top');if(!ended)st.phase='topResponse';
- botLog(room,m.distance===0?`Réception ${m.targetValue} : déjà en position.`:`Réception ${m.targetValue} : distance ${m.distance} → ${m.moveSpend} déplacement + ${m.energySpend} énergie.`);
- io.to(room).emit('freshTopMoveApplied',{state:st,action:{type:'topMove',targetValue:m.targetValue,moveSpend:m.moveSpend,energySpend:m.energySpend,distance:m.distance}});
+ if(pick.power&&botActivatePower(st,pick.power))botLog(room,`BOT — ${botPowerLabel(pick.power)} utilisé au déplacement : distance brute ${m.rawDistance??m.distance}, coût retenu ${m.moveSpend} D + ${m.energySpend} E.`);
+ botAnalysis(room,'move',st,{targetValue:+st.lastPlayedValue,chosen:m,options:pick.normal?.options||[],characterPower:pick.power||null,powerConsidered:pick.powerConsidered||null,normalScore:pick.normalScore,powerScore:pick.powerScore,powerForced:!!pick.forced},r.botDifficulty);
+ st.opponentMovement-=m.moveSpend;st.opponentEnergy-=m.energySpend;st.opponentPaddleNode=+st.lastPlayedValue;
+ if(st.characterPowers?.top?.mathieu_energy_only)st.characterPowers.top.mathieu_energy_only.active=false;
+ if(st.characterPowers?.top?.mathieu_reduce1)st.characterPowers.top.mathieu_reduce1.active=false;
+ if(st.characterPowers?.top?.mathieu_free_move)st.characterPowers.top.mathieu_free_move.active=false;
+ const ended=maybeEndAfterMove(room,r,'top');if(!ended)st.phase='topResponse';
+ const targetValue=+st.lastPlayedValue;
+ botLog(room,m.distance===0?`Réception ${targetValue} : déjà en position.`:`Réception ${targetValue} : distance ${m.distance} → ${m.moveSpend} déplacement + ${m.energySpend} énergie.`);
+ io.to(room).emit('freshTopMoveApplied',{state:st,action:{type:'topMove',targetValue,moveSpend:m.moveSpend,energySpend:m.energySpend,distance:m.distance,characterPower:pick.power||null}});
  if(!ended)setTimeout(()=>botResponse(room,r),350);
 }
 function botResponse(room,r){
@@ -799,7 +843,7 @@ function botResponse(room,r){
  else{const d=shortestDistance(st.localPaddleNode??'S',c.finalValue);if(!canPayMoveDistance(d,st.localMovement,st.localEnergy))e={winner:'top',reason:'impossibleMovement',message:`Vous devez parcourir ${d} zone(s), mais ne pouvez pas payer le déplacement.`};}
  if(e){st.pointEnded=true;st.pointWinnerSide=e.winner;st.pointEndReason=e.reason;st.pointEndMessage=e.message;st.phase='pointEnded';}else st.phase='bottomMove';
  let exhaustionHold=false;
- if(!e) exhaustionHold=jeanneOwnerResponded(room,r,'top');
+ if(!e) exhaustionHold=mathieuOwnerResponded(room,r,'top')||jeanneOwnerResponded(room,r,'top');
 
  botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Progression de son objectif : ${before} → ${after}.`);
  io.to(room).emit('freshTopResponseApplied',{state:st,action});
@@ -811,6 +855,7 @@ function scheduleBot(room,r){if(!r||!r.botMode||!r.state||r.state.pointEnded)ret
  if(r.state.phase==='service'&&r.state.pointServerSide==='top')setTimeout(()=>botService(room,r),550);
  else if(r.state.phase==='topMove')setTimeout(()=>botMove(room,r),550);
  else if(r.state.phase==='topResponse')setTimeout(()=>botResponse(room,r),550);
+ else if(r.state.phase==='mathieuExhaustion'&&r.state.mathieuExhaustion?.top?.stage==='roll')setTimeout(()=>botResolveExhaustion(room,r,'mathieu'),550);
  else if(r.state.phase==='jeanneExhaustion'&&r.state.jeanneExhaustion?.top?.stage==='roll')setTimeout(()=>botResolveExhaustion(room,r,'jeanne'),550);
 }
 
