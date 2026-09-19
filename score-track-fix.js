@@ -4,7 +4,7 @@
    (déclaré en 'let' dans le HTML et donc absent de window). */
 (function(){
   const OLD=[7.0,22.5,39.5,57.0,82.0];
-  const FIX=[7.0,27.0,44.0,61.0,88.0];
+  const FIX=[7.0,27.0,45.5,64.0,88.0];
   let busy=false;
 
   function installStyle(){
