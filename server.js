@@ -655,12 +655,8 @@ function botChooseJeanneShot(st,isService,difficulty){
  const normalScore=botV3LikeScore(st,normalChoice);
  let powerScore=best.powerScore;
  if(power==='jeanne_free_value'&&!botVirtualShotResult(st,best)?.finish)powerScore-=180;
- /* TEST TEMPORAIRE BOT JEANNE :
-    forcer P1 puis P2 puis P3 à leur première occasion légale afin de valider
-    l'intégration. À retirer après les essais pour restaurer l'arbitrage normal. */
- const forceJeannePowersForTest=true;
- const use=forceJeannePowersForTest || powerScore>normalScore+botPowerReserve(st,power);
- return {choice:use?best:normalChoice,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:forceJeannePowersForTest};
+ const use=powerScore>normalScore+botPowerReserve(st,power);
+ return {choice:use?best:normalChoice,normal,power:use?power:null,powerConsidered:power,powerScore,normalScore,forced:false};
 }
 
 function botPowerDiagnostic(room,st,kind,pick){
