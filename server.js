@@ -57,8 +57,8 @@ function makeInitialState(){
     matchScore:{top:0,bottom:0},
     pointServerSide:'bottom',
     characterPowers:{
-      top:{mathieu_energy_only:{used:false,active:false}},
-      bottom:{mathieu_energy_only:{used:false,active:false}}
+      top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}},
+      bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false}}
     }
   };
 }
@@ -662,16 +662,19 @@ io.on('connection',socket=>{
     const side=player.seat==='joiner'?'top':'bottom';
     const st=r.state;
     if(st.characterMode!=='on') return socket.emit('roomError','Cette partie est sans personnages.');
-    if(power!=='mathieu_energy_only') return socket.emit('roomError','Pouvoir non disponible à cette étape.');
+    if(!['mathieu_energy_only','mathieu_reduce1','mathieu_free_move'].includes(power)) return socket.emit('roomError','Pouvoir non disponible à cette étape.');
     if(st.characters?.[side]!=='mathieu') return socket.emit('roomError','Ce pouvoir appartient à Mathieu.');
     if(st.pointEnded || st.phase!==(side==='top'?'topMove':'bottomMove')) return socket.emit('roomError','Ce pouvoir s’utilise au moment du déplacement de votre raquette.');
-    const p=st.characterPowers?.[side]?.mathieu_energy_only;
+    const powers=st.characterPowers?.[side];
+    const p=powers?.[power];
     if(!p || p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
+    if(power==='mathieu_reduce1' && !powers?.mathieu_energy_only?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');
+    if(power==='mathieu_free_move' && !powers?.mathieu_reduce1?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 2.');
     const node=side==='top'?(st.opponentPaddleNode??'S'):(st.localPaddleNode??'S');
     const energy=side==='top'?st.opponentEnergy:st.localEnergy;
     const distance=shortestDistance(node,Number(st.lastPlayedValue));
     if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
-    if(distance>energy) return socket.emit('roomError','Énergie insuffisante.');
+    if(power==='mathieu_energy_only' && distance>energy) return socket.emit('roomError','Énergie insuffisante.');
     p.used=true;p.active=true;
     io.to(room).emit('freshCharacterPowerActivated',{state:st,side,power});
   });
@@ -751,8 +754,11 @@ io.on('connection',socket=>{
     */
     if(targetValue!==Number(st.lastPlayedValue)) return socket.emit('roomError','Cible de déplacement incorrecte.');
 
-    const distance=shortestDistance(st.opponentPaddleNode ?? 'S',targetValue);
-    if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
+    const rawDistance=shortestDistance(st.opponentPaddleNode ?? 'S',targetValue);
+    if(!Number.isFinite(rawDistance)) return socket.emit('roomError','Déplacement impossible.');
+    const mathieuReduce1=!!st.characterPowers?.top?.mathieu_reduce1?.active;
+    const mathieuFreeMove=!!st.characterPowers?.top?.mathieu_free_move?.active;
+    const distance=mathieuFreeMove?0:(mathieuReduce1?Math.max(0,rawDistance-1):rawDistance);
 
     const mathieuEnergyOnly=!!st.characterPowers?.top?.mathieu_energy_only?.active;
     if(distance===0){
@@ -771,6 +777,8 @@ io.on('connection',socket=>{
     st.opponentEnergy-=energySpend;
     st.opponentPaddleNode=targetValue;
     if(st.characterPowers?.top?.mathieu_energy_only) st.characterPowers.top.mathieu_energy_only.active=false;
+    if(st.characterPowers?.top?.mathieu_reduce1) st.characterPowers.top.mathieu_reduce1.active=false;
+    if(st.characterPowers?.top?.mathieu_free_move) st.characterPowers.top.mathieu_free_move.active=false;
 
     const endedAfterMove = maybeEndAfterMove(room,r,'top');
     if(!endedAfterMove) st.phase='topResponse';
@@ -883,8 +891,11 @@ io.on('connection',socket=>{
 
     if(targetValue!==Number(st.lastPlayedValue)) return socket.emit('roomError','Cible de déplacement incorrecte.');
 
-    const distance=shortestDistance(st.localPaddleNode ?? 'S',targetValue);
-    if(!Number.isFinite(distance)) return socket.emit('roomError','Déplacement impossible.');
+    const rawDistance=shortestDistance(st.localPaddleNode ?? 'S',targetValue);
+    if(!Number.isFinite(rawDistance)) return socket.emit('roomError','Déplacement impossible.');
+    const mathieuReduce1=!!st.characterPowers?.bottom?.mathieu_reduce1?.active;
+    const mathieuFreeMove=!!st.characterPowers?.bottom?.mathieu_free_move?.active;
+    const distance=mathieuFreeMove?0:(mathieuReduce1?Math.max(0,rawDistance-1):rawDistance);
 
     const mathieuEnergyOnly=!!st.characterPowers?.bottom?.mathieu_energy_only?.active;
     if(distance===0){
@@ -903,6 +914,8 @@ io.on('connection',socket=>{
     st.localEnergy-=energySpend;
     st.localPaddleNode=targetValue;
     if(st.characterPowers?.bottom?.mathieu_energy_only) st.characterPowers.bottom.mathieu_energy_only.active=false;
+    if(st.characterPowers?.bottom?.mathieu_reduce1) st.characterPowers.bottom.mathieu_reduce1.active=false;
+    if(st.characterPowers?.bottom?.mathieu_free_move) st.characterPowers.bottom.mathieu_free_move.active=false;
 
     const endedAfterMove = maybeEndAfterMove(room,r,'bottom');
     if(!endedAfterMove) st.phase='bottomResponse';
