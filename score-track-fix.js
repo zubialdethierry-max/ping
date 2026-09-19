@@ -12,7 +12,24 @@
     const s=document.createElement('style');s.id='ping-score-track-fix-style';
     /* Le PNG bleu possède de grandes marges transparentes : sa boîte doit être
        nettement plus grande pour obtenir la même taille VISUELLE que le violet. */
-    s.textContent='.scoreBottomWrap .scoreMeeple{width:30% !important;}';
+    s.textContent=`
+      .scoreBottomWrap .scoreMeeple{width:30% !important;}
+      /* Le jeton d'interdiction est rangé sous la piste de score du joueur bleu
+         lorsqu'il n'est pas encore placé entre les piles. */
+      #constraintToken:not(.active){
+        position:fixed !important;
+        left:auto !important;top:auto !important;
+        right:6.5vw !important;bottom:9vh !important;
+        width:clamp(54px,6vw,92px) !important;
+        transform:none !important;
+        display:block !important;
+        opacity:.82 !important;
+      }
+      #constraintToken.active{opacity:1 !important;}
+      @media (max-width:1200px),(max-height:760px){
+        #constraintToken:not(.active){right:7vw !important;bottom:4vh !important;width:clamp(46px,7vw,72px) !important;}
+      }
+    `;
     document.head.appendChild(s);
   }
   function remap(el){
