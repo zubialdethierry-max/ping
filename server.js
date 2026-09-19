@@ -61,7 +61,9 @@ function makeInitialState(){
       bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false},jeanne_free_value:{used:false,active:false}}
     },
     mathieuExhaustion:{top:null,bottom:null},
-    jeanneExhaustion:{top:null,bottom:null}
+    jeanneExhaustion:{top:null,bottom:null},
+    timerMode:'off',
+    turnTimer:{activeSide:null,deadline:null,seconds:30}
   };
 }
 
@@ -247,9 +249,33 @@ function resetPointState(st){
   st.phase='service';
 }
 
+function timerMatchPointActive(st){
+  return st?.timerMode==='match_point_30' && Math.max(Number(st.matchScore?.top)||0,Number(st.matchScore?.bottom)||0)>=3;
+}
+function clearTurnTimer(r){
+  if(r?.turnTimerHandle){clearTimeout(r.turnTimerHandle);r.turnTimerHandle=null;}
+  if(r?.state?.turnTimer){r.state.turnTimer.activeSide=null;r.state.turnTimer.deadline=null;}
+}
+function startTurnTimer(room,r,side){
+  const st=r?.state;if(!st)return;
+  clearTurnTimer(r);
+  if(!timerMatchPointActive(st)||st.pointEnded||st.phase==='service'||st.phase==='matchEnded')return;
+  const deadline=Date.now()+30000;
+  st.turnTimer={activeSide:side,deadline,seconds:30};
+  io.to(room).emit('freshTurnTimer',{state:st,activeSide:side,deadline,seconds:30});
+  r.turnTimerHandle=setTimeout(()=>{
+    if(!r.state||r.state.pointEnded)return;
+    const t=r.state.turnTimer;
+    if(!t||t.activeSide!==side||t.deadline!==deadline)return;
+    clearTurnTimer(r);
+    const winner=side==='bottom'?'top':'bottom';
+    markPointEnded(room,r,winner,'turnTimeout',`${side==='bottom'?'J1':'J2'} a dépassé les 30 secondes de réflexion.`);
+  },30050);
+}
 function markPointEnded(room,r,winnerSide,reason,message){
   const st=r.state;
   if(!st || st.pointEnded) return false;
+  clearTurnTimer(r);
   st.pointEnded=true;
   st.pointWinnerSide=winnerSide;
   st.pointEndReason=reason;
@@ -845,6 +871,7 @@ function botResponse(room,r){
 
  botLog(room,`Réponse : ${c.color} ${c.printedValue} → ${c.finalValue}, coût ${c.cost}. Progression de son objectif : ${before} → ${after}.`);
  io.to(room).emit('freshTopResponseApplied',{state:st,action});
+ if(!e&&!exhaustionHold) startTurnTimer(room,r,'bottom');
  if(e)io.to(room).emit('freshPointEnded',{state:st,winnerSide:e.winner,reason:e.reason,message:e.message});
  else if(exhaustionHold) scheduleBot(room,r);
 
@@ -878,10 +905,11 @@ io.on('connection',socket=>{
     }
   });
 
-  socket.on('createRoom',({name,opponentType,characterMode})=>{
+  socket.on('createRoom',({name,opponentType,characterMode,timerMode})=>{
     const room=makeCode(), state=makeInitialState();
     state.characterMode=characterMode==='on'?'on':'off';
     state.characters=characterState.createCharacters();
+    state.timerMode=timerMode==='match_point_30'?'match_point_30':'off';
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
     const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
     const players=[{id:socket.id,name,seat:'host'}];
@@ -1059,6 +1087,7 @@ io.on('connection',socket=>{
     };
     st.boardPlays.push(action);
     io.to(room).emit('freshServiceApplied',{state:st,action});
+    startTurnTimer(room,r,serviceSide==='bottom'?'top':'bottom');
     scheduleBot(room,r);
   });
 
@@ -1213,6 +1242,7 @@ io.on('connection',socket=>{
       jeanneOwnerResponded(room,r,'top');
     }
     io.to(room).emit('freshTopResponseApplied',{state:st,action});
+    if(!endSpec&&!exhaustionHold) startTurnTimer(room,r,'bottom');
     if(endSpec){
       io.to(room).emit('freshPointEnded',{
         state:st,winnerSide:endSpec.winner,reason:endSpec.reason,message:endSpec.message
@@ -1356,6 +1386,7 @@ io.on('connection',socket=>{
 
     const exhaustionHold=!endSpec&&(mathieuOwnerResponded(room,r,'bottom')||jeanneOwnerResponded(room,r,'bottom'));
     io.to(room).emit('freshBottomResponseApplied',{state:st,action});
+    if(!endSpec&&!exhaustionHold) startTurnTimer(room,r,'top');
     if(!exhaustionHold) scheduleBot(room,r);
     if(endSpec){
       io.to(room).emit('freshPointEnded',{
@@ -1376,6 +1407,7 @@ io.on('connection',socket=>{
     if(!r) return socket.emit('roomError','Salle introuvable.');
     const st=r.state;
     if(!st || !st.pointEnded || st.phase!=='pointEnded') return;
+    clearTurnTimer(r);
 
     const winner=st.pointWinnerSide;
     if(winner!=='top' && winner!=='bottom') return;
