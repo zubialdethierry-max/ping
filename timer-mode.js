@@ -47,8 +47,17 @@
   el.querySelector('.time').textContent=String(left).padStart(2,'0')+' s';
   raf=requestAnimationFrame(render);
  }
- window.addEventListener('load',()=>{
-  install();if(!transport()){const q=setInterval(()=>{if(transport())clearInterval(q)},25);}
-  const s=socket();if(s?.onAny)s.onAny((e,p)=>{if(p?.state)sync(p.state);});
- });
+ function boot(){
+  install();
+  if(!transport()){const q=setInterval(()=>{if(transport())clearInterval(q)},25);}
+  const bind=()=>{
+    const s=socket();
+    if(!s)return false;
+    if(!s.__pingTimerStateListener&&s.onAny){s.onAny((e,p)=>{if(p?.state)sync(p.state);});s.__pingTimerStateListener=true;}
+    return true;
+  };
+  if(!bind()){const q=setInterval(()=>{if(bind())clearInterval(q)},25);}
+ }
+ if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',boot,{once:true});
+ else boot();
 })();
