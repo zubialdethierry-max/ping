@@ -1,5 +1,6 @@
 (()=>{
 let choice='';
+let lastState=null;
 const getSocket=()=>window.freshPingSocket||window.FRESH_NET?.socket||null;
 const getSide=()=>window.FRESH_NET?.seat==='joiner'?'top':'bottom';
 
@@ -27,6 +28,8 @@ function init(){
   document.getElementById('characterChoiceOk').onclick=()=>{const n=window.FRESH_NET;if(choice&&n?.room)getSocket()?.emit('freshChooseCharacter',{room:n.room,character:choice});};
 }
 function sync(st){
+  if(st) lastState=st;
+  st=st||lastState;
   if(!st||st.characterMode!=='on'){document.getElementById('characterChoice')?.classList.remove('open');return;}
   const side=getSide();
   if(!st.characters||!Object.prototype.hasOwnProperty.call(st.characters,side))return;
@@ -39,6 +42,7 @@ window.addEventListener('load',()=>{
   if(!installModeTransport()){const t=setInterval(()=>{if(installModeTransport())clearInterval(t)},25);}
   const s=getSocket();
   if(s&&typeof s.onAny==='function')s.onAny((e,p)=>{if(p?.state)sync(p.state)});
-  new MutationObserver(()=>{const n=window.FRESH_NET;if(document.body.classList.contains('fresh-game-ready')&&n?.state)sync(n.state)}).observe(document.body,{attributes:true,attributeFilter:['class']});
+  if(s)s.on('freshCharacterChosen',p=>{if(p?.state)sync(p.state)});
+  new MutationObserver(()=>{if(document.body.classList.contains('fresh-game-ready'))sync(lastState)}).observe(document.body,{attributes:true,attributeFilter:['class']});
 });
 })();
