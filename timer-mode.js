@@ -16,8 +16,8 @@
      min-width:112px;padding:8px 12px;border:3px solid #102c46;border-radius:12px;background:#fff;color:#102c46;
      font:900 14px Arial;text-align:center;box-shadow:0 4px 14px #0004}
    @media (max-width:1200px),(max-height:760px){
-     #pingTurnClock{right:auto;left:12px;top:auto;bottom:12px;transform:none;min-width:96px;padding:6px 9px}
-     #pingTurnClock .time{font-size:25px!important}
+     #pingTurnClock.waiting{right:auto;left:12px;top:auto;bottom:12px;transform:none;min-width:96px;padding:6px 9px}
+     #pingTurnClock.waiting .time{font-size:25px!important}
    }
    #pingTurnClock.on{display:block}#pingTurnClock .time{font-size:30px;line-height:1;margin-top:3px}
    #pingTurnClock.waiting{display:block;opacity:.42;filter:grayscale(1);background:#e5e8eb}
