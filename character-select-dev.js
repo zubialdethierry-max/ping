@@ -39,6 +39,10 @@ function sync(st){
   else if(document.body.classList.contains('fresh-game-ready'))document.getElementById('characterChoice')?.classList.add('open');
 }
 window.addEventListener('load',()=>{
+  /* Chronomètre commun, actif avec ou sans personnages. */
+  if(!document.querySelector('script[data-ping-timer-mode]')){
+    const tm=document.createElement('script');tm.src='/timer-mode.js';tm.dataset.pingTimerMode='1';document.head.appendChild(tm);
+  }
   /* Correctif global de la piste de score, actif avec ou sans personnages. */
   if(!document.querySelector('script[data-ping-score-track-fix]')){
     const sc=document.createElement('script');
