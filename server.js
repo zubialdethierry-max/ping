@@ -772,6 +772,8 @@ function botResponse(room,r){
  if(st.characterPowers?.top?.jeanne_pm2)st.characterPowers.top.jeanne_pm2.active=false;
  if(st.characterPowers?.top?.jeanne_free_value)st.characterPowers.top.jeanne_free_value.active=false;
  st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
+ /* La réponse du BOT fait avancer l'épuisement de Mathieu humain. Jeanne BOT reste sans épuisement pendant cette étape de test. */
+ mathieuOpponentResponded(st,'top');
  
  const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost,characterPower:pick.power||null};st.boardPlays.push(action);
  const after=botProgress(st,'top');let e=null;
