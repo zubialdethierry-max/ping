@@ -617,6 +617,7 @@ function botResponse(room,r){
  if(!c){markPointEnded(room,r,'bottom','noLegalResponse','Le BOT n’a aucune réponse légale.');return;}
  botAnalysis(room,'response',st,{chosen:c,options:z.options||[]},r.botDifficulty);
  const p=st.pingPiles[c.pileIndex];p.cards.shift();st.opponentEnergy-=c.cost;st.lastPlayedColor=p.color;st.lastPlayedValue=c.finalValue;st.blockedColor=p.color;
+ mathieuOpponentResponded(st,'top');
  const action={type:'topResponse',side:'top',pileIndex:c.pileIndex,color:p.color,printedValue:c.printedValue,finalValue:c.finalValue,cost:c.cost};st.boardPlays.push(action);
  const after=botProgress(st,'top');let e=null;
  if(objectiveComplete(st,'top'))e={winner:'top',reason:'objective',message:'Le BOT complète son objectif.'};
