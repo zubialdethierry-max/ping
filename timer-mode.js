@@ -10,7 +10,7 @@
   const host=document.getElementById('pingModeChoice');if(!host)return;
   const style=document.createElement('style');
   style.textContent=`
-   #pingTimerMode{margin-top:9px}.pingModeButtons button.pingGameModeSelected{background:rgba(230,45,45,.78)!important;color:#fff!important;border-color:rgba(255,255,255,.95)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)!important}.pingLobbyActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.pingLobbyActions button{margin:0!important;width:100%;padding:8px!important}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
+   #pingModeChoice{background:rgba(16,44,70,.80)!important}#pingTimerMode{margin-top:9px}.pingModeButtons button.pingGameModeSelected{background:rgba(230,45,45,.78)!important;color:#fff!important;border-color:rgba(255,255,255,.95)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)!important}.pingLobbyActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.pingLobbyActions button{margin:0!important;width:100%;padding:8px!important}.ptLabel{font-size:10px;font-weight:900;letter-spacing:.8px;margin-bottom:5px}
    .ptSelect{width:100%;padding:9px 10px;border:2px solid #fff;border-radius:8px;background:rgba(230,45,45,.78);color:#fff;font-size:11px;font-weight:900;cursor:pointer}
    #pingBlitzMinutes{display:none;margin-top:6px}
    #pingTurnClock{position:fixed;z-index:17500;right:18px;top:50%;transform:translateY(-50%);display:none;
