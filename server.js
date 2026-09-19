@@ -57,8 +57,8 @@ function makeInitialState(){
     matchScore:{top:0,bottom:0},
     pointServerSide:'bottom',
     characterPowers:{
-      top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false}},
-      bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false}}
+      top:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false},jeanne_free_value:{used:false,active:false}},
+      bottom:{mathieu_energy_only:{used:false,active:false},mathieu_reduce1:{used:false,active:false},mathieu_free_move:{used:false,active:false},jeanne_pm1:{used:false,active:false},jeanne_pm2:{used:false,active:false},jeanne_free_value:{used:false,active:false}}
     },
     mathieuExhaustion:{top:null,bottom:null}
   };
@@ -691,7 +691,7 @@ io.on('connection',socket=>{
     if(!player) return socket.emit('roomError','Joueur introuvable.');
     const side=player.seat==='joiner'?'top':'bottom',st=r.state;
     if(st.characterMode!=='on') return socket.emit('roomError','Cette partie est sans personnages.');
-    if(!['jeanne_pm1','jeanne_pm2'].includes(power)) return socket.emit('roomError','Pouvoir non disponible à cette étape.');
+    if(!['jeanne_pm1','jeanne_pm2','jeanne_free_value'].includes(power)) return socket.emit('roomError','Pouvoir non disponible à cette étape.');
     if(st.characters?.[side]!=='jeanne') return socket.emit('roomError','Ce pouvoir appartient à Jeanne.');
     const allowed=(st.phase==='service'&&st.pointServerSide===side)||st.phase===(side==='top'?'topResponse':'bottomResponse');
     if(st.pointEnded||!allowed) return socket.emit('roomError','Ce pouvoir doit être activé au moment de choisir la valeur d’une tuile.');
@@ -699,6 +699,7 @@ io.on('connection',socket=>{
     const p=powers?.[power];
     if(!p || p.used) return socket.emit('roomError','Ce pouvoir a déjà été utilisé.');
     if(power==='jeanne_pm2' && !powers?.jeanne_pm1?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 1.');
+    if(power==='jeanne_free_value' && !powers?.jeanne_pm2?.used) return socket.emit('roomError','Utilisez d’abord le pouvoir 2.');
     p.used=true;p.active=true;
     io.to(room).emit('freshJeannePowerActivated',{state:st,side,power});
   });
@@ -777,14 +778,16 @@ io.on('connection',socket=>{
     const printedValue=Number(pile.cards[0]);
     const jp1=st.characterPowers?.[serviceSide]?.jeanne_pm1;
     const jp2=st.characterPowers?.[serviceSide]?.jeanne_pm2;
+    const jp3=st.characterPowers?.[serviceSide]?.jeanne_free_value;
     const rawCost=Math.abs(printedValue-finalValue);
-    const cost=jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost);
+    const cost=jp3?.active?0:(jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost));
     const energyAvailable = serviceSide==='bottom' ? st.localEnergy : st.opponentEnergy;
     if(cost>energyAvailable) return socket.emit('roomError','Énergie insuffisante.');
 
     pile.cards.shift();
     if(jp1?.active) jp1.active=false;
     if(jp2?.active) jp2.active=false;
+    if(jp3?.active) jp3.active=false;
     if(serviceSide==='bottom') st.localEnergy-=cost;
     else st.opponentEnergy-=cost;
 
@@ -899,8 +902,9 @@ io.on('connection',socket=>{
     const printedValue=Number(pile.cards[0]);
     const jp1=st.characterPowers?.top?.jeanne_pm1;
     const jp2=st.characterPowers?.top?.jeanne_pm2;
+    const jp3=st.characterPowers?.top?.jeanne_free_value;
     const rawCost=Math.abs(printedValue-finalValue);
-    const cost=jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost);
+    const cost=jp3?.active?0:(jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost));
     if(cost>st.opponentEnergy) return socket.emit('roomError','Énergie insuffisante.');
     if(!responseRuleAllows(st.lastPlayedColor,Number(st.lastPlayedValue),finalValue)){
       return socket.emit('roomError','Valeur de réponse interdite.');
@@ -909,6 +913,7 @@ io.on('connection',socket=>{
     pile.cards.shift();
     if(jp1?.active) jp1.active=false;
     if(jp2?.active) jp2.active=false;
+    if(jp3?.active) jp3.active=false;
     st.opponentEnergy-=cost;
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
@@ -1039,8 +1044,9 @@ io.on('connection',socket=>{
     const printedValue=Number(pile.cards[0]);
     const jp1=st.characterPowers?.bottom?.jeanne_pm1;
     const jp2=st.characterPowers?.bottom?.jeanne_pm2;
+    const jp3=st.characterPowers?.bottom?.jeanne_free_value;
     const rawCost=Math.abs(printedValue-finalValue);
-    const cost=jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost);
+    const cost=jp3?.active?0:(jp2?.active?Math.max(0,rawCost-2):(jp1?.active?Math.max(0,rawCost-1):rawCost));
     if(cost>st.localEnergy) return socket.emit('roomError','Énergie insuffisante.');
     if(!responseRuleAllows(st.lastPlayedColor,Number(st.lastPlayedValue),finalValue)){
       return socket.emit('roomError','Valeur de réponse interdite.');
@@ -1049,6 +1055,7 @@ io.on('connection',socket=>{
     pile.cards.shift();
     if(jp1?.active) jp1.active=false;
     if(jp2?.active) jp2.active=false;
+    if(jp3?.active) jp3.active=false;
     st.localEnergy-=cost;
     st.lastPlayedColor=pile.color;
     st.lastPlayedValue=finalValue;
