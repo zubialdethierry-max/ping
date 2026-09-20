@@ -80,17 +80,13 @@ const MOVE_GRAPH = {
   2:[1,4],
   3:['S',1,4,5],
   4:['S',2,3,6],
-  5:[3],
-  6:[4]
+  5:[3,'OBJ'],
+  6:[4,'OBJ'],
+  OBJ:[5,6]
 };
 
 function shortestDistance(from,to){
   if(String(from)===String(to)) return 0;
-
-  /* Les deux extrémités 5 et 6 sont séparées de 2 déplacements.
-     Cette règle avait été perdue lors d'une restauration du graphe. */
-  const a=Number(from), b=Number(to);
-  if((a===5 && b===6) || (a===6 && b===5)) return 2;
 
   const q=[[from,0]];
   const seen=new Set([String(from)]);
