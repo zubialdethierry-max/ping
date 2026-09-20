@@ -11,7 +11,7 @@
 
     /* Le badge est désormais attaché à la tuile supérieure elle-même :
        il suit donc automatiquement tous les redimensionnements du plateau. */
-    tiles.forEach(tile=>tile.querySelectorAll(':scope > .pingStackBadge').forEach(el=>el.remove()));
+    layer.querySelectorAll('.pingStackBadge').forEach(el=>el.remove());
 
     const groups=[];
     for(const tile of tiles){
@@ -43,7 +43,7 @@
       const tileRect=topTile.getBoundingClientRect();
       const isTop=(tileRect.top+tileRect.height/2)<(layerRect.top+layerRect.height/2);
       badge.classList.toggle('pingStackBadgeTop',isTop);
-      topTile.appendChild(badge);
+      const lr=layer.getBoundingClientRect();\n      badge.style.left=(isTop ? (tileRect.left-lr.left-5) : (tileRect.right-lr.left+5))+'px';\n      badge.style.top=(isTop ? (tileRect.bottom-lr.top+5) : (tileRect.top-lr.top-5))+'px';\n      layer.appendChild(badge);
     }
   }
 
@@ -63,8 +63,8 @@
       .pingStackBadge{
         position:absolute;
         z-index:45;
-        right:-5px;
-        top:-5px;
+        left:0;
+        top:0;
         min-width:22px;
         height:22px;
         padding:0 4px;
@@ -77,15 +77,11 @@
         text-align:center;
         pointer-events:none;
         box-shadow:0 1px 4px rgba(0,0,0,.65);
-        transform:none;
+        transform:translate(-50%,-50%);
         transform-origin:center;
       }
       .pingStackBadge.pingStackBadgeTop{
-        right:auto;
-        left:-5px;
-        top:auto;
-        bottom:-5px;
-        transform:rotate(180deg);
+        transform:translate(-50%,-50%) rotate(180deg);
       }
     `;
     document.head.appendChild(style);
