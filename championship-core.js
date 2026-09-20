@@ -1,6 +1,8 @@
 /* PING! — Championnat solo V1 : calendrier, classement et progression persistante. */
 'use strict';
 
+const {simulateMatch}=require('./championship-simulator');
+
 const BOT_IDENTITIES=[
  {id:'lucas_morel',name:'Lucas Morel',profile:'equilibre',skill:42},
  {id:'emma_laurent',name:'Emma Laurent',profile:'objectif',skill:48},
@@ -20,8 +22,7 @@ function roundRobin(ids){
    const x=a[i],y=a[a.length-1-i];
    if(x&&y)matches.push(r%2?{home:y,away:x}:{home:x,away:y});
   }
-  rounds.push(matches);
-  a.splice(1,0,a.pop());
+  rounds.push(matches); a.splice(1,0,a.pop());
  }
  return rounds;
 }
@@ -31,20 +32,16 @@ function createSeason(playerName='Joueur'){
   {id:'human',name:String(playerName||'Joueur'),human:true,profile:'humain',skill:null},
   ...BOT_IDENTITIES.map(x=>({...x,human:false}))
  ];
- return {
-  version:1,status:'active',round:0,players,
-  schedule:roundRobin(players.map(p=>p.id)),
-  results:[],createdAt:new Date().toISOString()
- };
+ return {version:1,status:'active',round:0,players,schedule:roundRobin(players.map(p=>p.id)),results:[],createdAt:new Date().toISOString()};
 }
 
-function recordResult(season,round,home,away,homeScore,awayScore){
+function recordResult(season,round,home,away,homeScore,awayScore,meta={}){
  homeScore=Number(homeScore);awayScore=Number(awayScore);
  if(![homeScore,awayScore].includes(4)||homeScore===awayScore)throw new Error('Un match doit se terminer à 4 points gagnants.');
  const match=season.schedule?.[round]?.find(m=>m.home===home&&m.away===away);
  if(!match)throw new Error('Match absent du calendrier.');
  if(season.results.some(x=>x.round===round&&x.home===home&&x.away===away))throw new Error('Match déjà enregistré.');
- season.results.push({round,home,away,homeScore,awayScore,winner:homeScore>awayScore?home:away});
+ season.results.push({round,home,away,homeScore,awayScore,winner:homeScore>awayScore?home:away,...meta});
 }
 
 function standings(season){
@@ -58,10 +55,30 @@ function standings(season){
  return [...rows.values()].sort((a,b)=>b.points-a.points||b.diff-a.diff||b.for-a.for||a.name.localeCompare(b.name,'fr')).map((r,i)=>({...r,rank:i+1}));
 }
 
+function playerById(season,id){return season.players.find(p=>p.id===id);}
+function currentRoundMatches(season){return (season.schedule[season.round]||[]).map(m=>({...m,homePlayer:playerById(season,m.home),awayPlayer:playerById(season,m.away)}));}
+function humanMatch(season){return currentRoundMatches(season).find(m=>m.home==='human'||m.away==='human')||null;}
+
+function simulateBotMatchesForCurrentRound(season,{rng=Math.random}={}){
+ if(season.status!=='active')return [];
+ const produced=[];
+ for(const m of currentRoundMatches(season)){
+  if(m.homePlayer.human||m.awayPlayer.human)continue;
+  if(season.results.some(x=>x.round===season.round&&x.home===m.home&&x.away===m.away))continue;
+  const sim=simulateMatch(m.homePlayer,m.awayPlayer,{rng});
+  recordResult(season,season.round,m.home,m.away,sim.homeScore,sim.awayScore,{simulated:true,pointWinners:sim.points});
+  produced.push(season.results[season.results.length-1]);
+ }
+ return produced;
+}
+
+function recordHumanMatch(season,humanScore,botScore){
+ const m=humanMatch(season); if(!m)throw new Error('Aucun match humain pour cette journée.');
+ const humanHome=m.home==='human';
+ recordResult(season,season.round,m.home,m.away,humanHome?humanScore:botScore,humanHome?botScore:humanScore,{simulated:false});
+}
+
 function progressBots(season){
- /* Progression volontairement lente : +0 à +1.25 par journée, plafond 75.
-    Le skill est une donnée interne destinée à piloter progressivement la qualité des décisions,
-    jamais à truquer directement un résultat. */
  for(const p of season.players){
   if(p.human)continue;
   const gain=0.35+Math.random()*0.9;
@@ -70,14 +87,17 @@ function progressBots(season){
 }
 
 function completeRound(season){
- const r=season.round;
- const expected=season.schedule[r]||[];
+ const r=season.round,expected=season.schedule[r]||[];
  const done=expected.every(m=>season.results.some(x=>x.round===r&&x.home===m.home&&x.away===m.away));
  if(!done)return false;
- progressBots(season);
- season.round++;
+ progressBots(season); season.round++;
  if(season.round>=season.schedule.length)season.status='finished';
  return true;
 }
 
-module.exports={BOT_IDENTITIES,createSeason,recordResult,standings,completeRound};
+function roundSummary(season,round=season.round){
+ const names=new Map(season.players.map(p=>[p.id,p.name]));
+ return season.results.filter(x=>x.round===round).map(x=>({...x,homeName:names.get(x.home),awayName:names.get(x.away)}));
+}
+
+module.exports={BOT_IDENTITIES,createSeason,recordResult,standings,currentRoundMatches,humanMatch,simulateBotMatchesForCurrentRound,recordHumanMatch,completeRound,roundSummary};
