@@ -8,6 +8,11 @@ const httpServer=http.createServer(app);
 const io=new Server(httpServer);
 app.use(express.static(__dirname));
 
+/* Modules d'interface globaux : injection serveur pour ne pas dépendre d'un ancien loader client. */
+app.get('/',(req,res)=>{
+  res.sendFile(require('path').join(__dirname,'index.html'),{headers:{'Cache-Control':'no-store'}});
+});
+
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
 app.get('/health',(req,res)=>{
   res.status(200).json({ok:true,game:'PING!',version:'0.34.3',rooms:rooms ? rooms.size : 0});
