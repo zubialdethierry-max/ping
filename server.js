@@ -6,19 +6,21 @@ const os=require('os');
 const app=express();
 const httpServer=http.createServer(app);
 const io=new Server(httpServer);
-app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control','no-store');}}));
 
-/* Modules d'interface globaux : injection serveur pour ne pas dépendre d'un ancien loader client. */
+/* Accueil PING! : la route doit précéder express.static, sinon index.html est servi
+   par le middleware statique avant que l'intégration Championnat puisse s'exécuter. */
 app.get('/',(req,res)=>{
   const fs=require('fs'),path=require('path');
   fs.readFile(path.join(__dirname,'index.html'),'utf8',(err,html)=>{
     if(err)return res.status(500).send('PING! — index indisponible');
-    const tag='<script src="/championship-ui.js?v=1"></script>';
+    const tag='<script src="/championship-ui.js?v=2"></script>';
     if(!html.includes('/championship-ui.js'))html=html.replace(/<\/body>/i,tag+'</body>');
     res.setHeader('Cache-Control','no-store');
     res.type('html').send(html);
   });
 });
+app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control','no-store');}}));
+
 
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
 app.get('/health',(req,res)=>{
