@@ -2,42 +2,48 @@
 (()=>{
   const TILE_SELECTOR='.boardPlayedTile';
 
-  function centerOf(tile){
-    const r=tile.getBoundingClientRect();
-    return {x:r.left+r.width/2,y:r.top+r.height/2};
-  }
-
   function refresh(layer){
     const tiles=[...layer.querySelectorAll(TILE_SELECTOR)];
 
-    /* Dernière tuile jouée. */
     tiles.forEach(tile=>tile.classList.remove('pingLatestPlayedTile'));
     const latest=tiles[tiles.length-1];
     if(latest) latest.classList.add('pingLatestPlayedTile');
 
-    /* Retire les anciens badges avant de recalculer les piles. */
-    layer.querySelectorAll('.pingStackBadge').forEach(el=>el.remove());
+    /* Le badge est désormais attaché à la tuile supérieure elle-même :
+       il suit donc automatiquement tous les redimensionnements du plateau. */
+    tiles.forEach(tile=>tile.querySelectorAll(':scope > .pingStackBadge').forEach(el=>el.remove()));
 
-    /* Les tuiles superposées partagent le même centre à quelques pixels près. */
     const groups=[];
     for(const tile of tiles){
-      const p=centerOf(tile);
-      let g=groups.find(x=>Math.hypot(x.x-p.x,x.y-p.y)<8);
-      if(!g){g={x:p.x,y:p.y,tiles:[]};groups.push(g);}
+      const left=parseFloat(tile.style.left);
+      const top=parseFloat(tile.style.top);
+      const key=Number.isFinite(left)&&Number.isFinite(top)
+        ? left.toFixed(3)+'|'+top.toFixed(3)
+        : null;
+      let g=key?groups.find(x=>x.key===key):null;
+      if(!g){
+        const r=tile.getBoundingClientRect();
+        const cx=r.left+r.width/2, cy=r.top+r.height/2;
+        g=groups.find(x=>!key&&Math.hypot(x.cx-cx,x.cy-cy)<8);
+        if(!g){g={key,cx,cy,tiles:[]};groups.push(g);}
+      }
       g.tiles.push(tile);
     }
 
-    const lr=layer.getBoundingClientRect();
     for(const g of groups){
       if(g.tiles.length<2) continue;
-      const top=g.tiles[g.tiles.length-1];
-      const tr=top.getBoundingClientRect();
-      const badge=document.createElement('div');
+      const topTile=g.tiles[g.tiles.length-1];
+      const badge=document.createElement('span');
       badge.className='pingStackBadge';
       badge.textContent='×'+g.tiles.length;
-      badge.style.left=(tr.right-lr.left-9)+'px';
-      badge.style.top=(tr.top-lr.top+9)+'px';
-      layer.appendChild(badge);
+
+      /* Les tuiles du demi-terrain supérieur appartiennent à J2.
+         Son plateau est vu à 180°, donc coin et texte du badge sont inversés. */
+      const layerRect=layer.getBoundingClientRect();
+      const tileRect=topTile.getBoundingClientRect();
+      const isTop=(tileRect.top+tileRect.height/2)<(layerRect.top+layerRect.height/2);
+      badge.classList.toggle('pingStackBadgeTop',isTop);
+      topTile.appendChild(badge);
     }
   }
 
@@ -53,10 +59,12 @@
           drop-shadow(0 0 7px rgba(255,215,0,1))
           drop-shadow(0 0 13px rgba(255,190,0,.95)) !important;
       }
+      .boardPlayedTile{overflow:visible !important}
       .pingStackBadge{
         position:absolute;
         z-index:45;
-        transform:translate(-50%,-50%);
+        right:-5px;
+        top:-5px;
         min-width:22px;
         height:22px;
         padding:0 4px;
@@ -69,6 +77,15 @@
         text-align:center;
         pointer-events:none;
         box-shadow:0 1px 4px rgba(0,0,0,.65);
+        transform:none;
+        transform-origin:center;
+      }
+      .pingStackBadge.pingStackBadgeTop{
+        right:auto;
+        left:-5px;
+        top:auto;
+        bottom:-5px;
+        transform:rotate(180deg);
       }
     `;
     document.head.appendChild(style);
@@ -84,10 +101,9 @@
       };
       update();
       new MutationObserver(muts=>{
-        /* Nos propres badges ne doivent pas relancer le calcul en boucle. */
         const external=muts.some(m=>[...m.addedNodes,...m.removedNodes].some(n=>!(n.nodeType===1&&n.classList?.contains('pingStackBadge'))));
         if(external) update();
-      }).observe(layer,{childList:true});
+      }).observe(layer,{childList:true,subtree:false});
       window.addEventListener('resize',update);
       return true;
     };
