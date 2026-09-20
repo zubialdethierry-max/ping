@@ -1,5 +1,7 @@
+/* Fond général du jeu uniquement.
+   Le fond spécifique de l'accueil est géré par #freshLanLobby dans index.html. */
 html, body {
-  background-image: url('/nouveau%20fond%20page%20accueil.png') !important;
+  background-image: url('/fond_ping_aquarelle.png') !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-size: cover !important;
