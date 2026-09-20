@@ -53,3 +53,23 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   window.PING_SCORE_TRACK_FIX={all,OLD,FIX};
 })();
+
+/* Règle plateau : passer directement de 5 à 6 (ou de 6 à 5) coûte 2 déplacements.
+   Correctif chargé après index.html afin d'écraser le calcul historique à 3. */
+(function pingDistance56FinalFix(){
+  function apply(){
+    if(typeof window.shortestDistance !== 'function') return false;
+    if(window.__pingDistance56FinalFixed) return true;
+    const base=window.shortestDistance;
+    window.shortestDistance=function(from,to){
+      const a=String(from), b=String(to);
+      if((a==='5' && b==='6') || (a==='6' && b==='5')) return 2;
+      return base(from,to);
+    };
+    window.__pingDistance56FinalFixed=true;
+    return true;
+  }
+  if(!apply()){
+    window.addEventListener('load',apply,{once:true});
+  }
+})();
