@@ -212,3 +212,31 @@
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply,{once:true});
   else apply();
 })();
+
+
+/* Correctifs règles plateau validées :
+   - distance 5 <-> 6 = exactement 2 déplacements ;
+   - objectif 1 : 6 jaune, 4 libre, 2 vert (lecture de la carte). */
+(function pingRulesHotfix20260920(){
+  function apply(){
+    if(typeof shortestDistance === 'function' && !window.__pingDistance56Fixed){
+      const baseShortestDistance = shortestDistance;
+      shortestDistance = function(from,to){
+        const a=String(from), b=String(to);
+        if((a==='5' && b==='6') || (a==='6' && b==='5')) return 2;
+        return baseShortestDistance(from,to);
+      };
+      window.__pingDistance56Fixed=true;
+    }
+
+    if(typeof OBJECTIVE_RULES !== 'undefined' && OBJECTIVE_RULES[1]){
+      OBJECTIVE_RULES[1] = {
+        type:'positions',
+        slots:{6:'jaune',4:'any',2:'vert'}
+      };
+    }
+  }
+
+  if(document.readyState==='complete') apply();
+  else window.addEventListener('load',apply,{once:true});
+})();
