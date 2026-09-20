@@ -34,7 +34,7 @@
   `;
   document.head.appendChild(style);
   const box=document.createElement('div');box.id='pingTimerMode';
-  box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 5 OU 10 MIN / JOUEUR</option></select><select id="pingBlitzMinutes" class="ptSelect"><option value="5">BLITZ — 5 MINUTES</option><option value="10">BLITZ — 10 MINUTES</option></select>';
+  box.innerHTML='<div class="ptLabel">MODE DE TEMPS</div><select id="pingTimerSelect" class="ptSelect"><option value="off">SANS TIMER</option><option value="match_point_30">COUP DE STRESS — 30 S À LA BALLE DE MATCH</option><option value="full_60_30">CHRONO — 60 S / TOUR → 30 S À LA BALLE DE MATCH</option><option value="blitz">BLITZ — 7, 8 OU 10 MIN / JOUEUR</option></select><select id="pingBlitzMinutes" class="ptSelect"><option value="7">MODE FÉBRILE — 7 MINUTES</option><option value="8">MODE SOUS TENSION — 8 MINUTES</option><option value="10">MODE NORMAL — 10 MINUTES</option></select>';
   const join=document.getElementById('freshShowJoin');host.insertBefore(box,join);
   /* La sélection du mode ne crée plus la partie immédiatement. */
   let selectedOpponent='human';
@@ -65,11 +65,11 @@
   });
   window.PING_TIMER_MODE='off';
   const select=box.querySelector('#pingTimerSelect');
-  const blitzSelect=box.querySelector('#pingBlitzMinutes');window.PING_BLITZ_MINUTES=5;
+  const blitzSelect=box.querySelector('#pingBlitzMinutes');window.PING_BLITZ_MINUTES=7;
   select.onchange=()=>{window.PING_TIMER_MODE=select.value;blitzSelect.style.display=select.value==='blitz'?'block':'none';};
-  blitzSelect.onchange=()=>{window.PING_BLITZ_MINUTES=Number(blitzSelect.value)||5;};
+  blitzSelect.onchange=()=>{window.PING_BLITZ_MINUTES=Number(blitzSelect.value)||7;};
   const clock=document.createElement('div');clock.id='pingTurnClock';clock.innerHTML='<div class="who">COUP DE STRESS</div><div class="time">30 s</div>';document.body.appendChild(clock);
-  const bc=document.createElement('div');bc.id='pingBlitzClocks';bc.innerHTML='<div class="blitzClock" data-side="top"><div class="blitzName">J2</div><div class="blitzTime">05:00</div></div><div class="blitzClock" data-side="bottom"><div class="blitzName">J1</div><div class="blitzTime">05:00</div></div>';document.body.appendChild(bc);
+  const bc=document.createElement('div');bc.id='pingBlitzClocks';bc.innerHTML='<div class="blitzClock" data-side="top"><div class="blitzName">J2</div><div class="blitzTime">07:00</div></div><div class="blitzClock" data-side="bottom"><div class="blitzName">J1</div><div class="blitzTime">07:00</div></div>';document.body.appendChild(bc);
   const stress=document.createElement('div');stress.id='pingStress';stress.innerHTML='<div class="psBox"><div class="psTitle">COUP DE STRESS !</div><div class="psText">Un joueur est à un point de la victoire.<br>Vous avez désormais</div><div class="psTime">30 SECONDES</div><div class="psText">par tour de jeu.</div><button class="psOk" type="button">JOUER</button></div>';document.body.appendChild(stress);
   stress.querySelector('.psOk').onclick=()=>stress.classList.remove('open');
  }
@@ -77,7 +77,7 @@
   const s=socket();if(!s||s.__pingTimerTransport)return false;
   const base=s.emit.bind(s);
   s.emit=function(event,...args){
-   if(event==='createRoom'){const d=args[0]&&typeof args[0]==='object'?{...args[0]}:{};d.timerMode=window.PING_TIMER_MODE||'off';d.blitzMinutes=window.PING_BLITZ_MINUTES||5;args[0]=d;}
+   if(event==='createRoom'){const d=args[0]&&typeof args[0]==='object'?{...args[0]}:{};d.timerMode=window.PING_TIMER_MODE||'off';d.blitzMinutes=window.PING_BLITZ_MINUTES||7;args[0]=d;}
    return base(event,...args);
   };s.__pingTimerTransport=true;return true;
  }
