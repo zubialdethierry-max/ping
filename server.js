@@ -949,7 +949,7 @@ io.on('connection',socket=>{
     state.characters=characterState.createCharacters();
     state.timerMode=['match_point_30','full_60_30','blitz'].includes(timerMode)?timerMode:'off';
     if(state.timerMode==='blitz'){
-      const mins=Number(blitzMinutes)===10?10:5;
+      const requested=Number(blitzMinutes);\n       const mins=[7,8,10].includes(requested)?requested:7;
       state.blitz={initialMs:mins*60000,remaining:{top:mins*60000,bottom:mins*60000},activeSide:null,startedAt:null};
     }
     const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
