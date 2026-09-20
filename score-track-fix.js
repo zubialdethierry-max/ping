@@ -60,12 +60,16 @@
   function apply(){
     if(typeof window.shortestDistance !== 'function') return false;
     if(window.__pingDistance56FinalFixed) return true;
-    const base=window.shortestDistance;
-    window.shortestDistance=function(from,to){
+    /* shortestDistance est déclaré dans le script principal. On remplace
+       directement son binding global (et pas seulement window.shortestDistance),
+       afin que openMoveAllocation/openLocalMoveAllocation utilisent bien le correctif. */
+    const base=shortestDistance;
+    shortestDistance=function(from,to){
       const a=String(from), b=String(to);
       if((a==='5' && b==='6') || (a==='6' && b==='5')) return 2;
       return base(from,to);
     };
+    window.shortestDistance=shortestDistance;
     window.__pingDistance56FinalFixed=true;
     return true;
   }
