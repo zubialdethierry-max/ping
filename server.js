@@ -6,6 +6,8 @@ const os=require('os');
 const app=express();
 const httpServer=http.createServer(app);
 const io=new Server(httpServer);
+app.use(express.json({limit:'64kb'}));
+const championship=require('./championship-simulator');
 
 /* Accueil PING! : la route doit précéder express.static, sinon index.html est servi
    par le middleware statique avant que l'intégration Championnat puisse s'exécuter. */
@@ -23,6 +25,18 @@ app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control',
 
 
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
+app.post('/api/championship/simulate',(req,res)=>{
+  try{
+    const matches=Array.isArray(req.body?.matches)?req.body.matches:[];
+    const results=matches.map(m=>{
+      const home=m?.home||{},away=m?.away||{};
+      const sim=championship.simulateMatch(home,away);
+      return {homeId:home.id,awayId:away.id,homeScore:sim.homeScore,awayScore:sim.awayScore,pointWinners:sim.points};
+    });
+    res.json({ok:true,results});
+  }catch(err){res.status(400).json({ok:false,error:String(err?.message||err)});}
+});
+
 app.get('/health',(req,res)=>{
   res.status(200).json({ok:true,game:'PING!',version:'0.34.3',rooms:rooms ? rooms.size : 0});
 });
@@ -957,7 +971,7 @@ io.on('connection',socket=>{
     }
   });
 
-  socket.on('createRoom',({name,opponentType,characterMode,timerMode,blitzMinutes})=>{
+  socket.on('createRoom',({name,opponentType,characterMode,timerMode,blitzMinutes,championshipBot})=>{
     const room=makeCode(), state=makeInitialState();
     state.characterMode=characterMode==='on'?'on':'off';
     state.characters=characterState.createCharacters();
@@ -967,11 +981,15 @@ io.on('connection',socket=>{
       const mins=[7,8,10].includes(requested)?requested:7;
       state.blitz={initialMs:mins*60000,remaining:{top:mins*60000,bottom:mins*60000},activeSide:null,startedAt:null};
     }
-    const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot';
-    const botDifficulty=opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null);
+    const botMode=opponentType==='bot_easy' || opponentType==='bot_intermediate' || opponentType==='bot' || opponentType==='championship_bot';
+    const championshipSkill=Math.max(0,Math.min(100,Number(championshipBot?.skill)||40));
+    const botDifficulty=opponentType==='championship_bot' ? (championshipSkill>=46?'intermediate_v2':'easy') : (opponentType==='bot_intermediate' ? 'intermediate_v2' : (botMode ? 'easy' : null));
     const players=[{id:socket.id,name,seat:'host'}];
-    if(botMode) players.push({id:'BOT',name:String(botDifficulty).startsWith('intermediate')?'BOT Intermédiaire V2':'BOT Facile',seat:'joiner',isBot:true});
-    rooms.set(room,{state,host:socket.id,players,botMode,botDifficulty});
+    if(botMode){
+      const botName=opponentType==='championship_bot' ? String(championshipBot?.name||'Adversaire championnat') : (String(botDifficulty).startsWith('intermediate')?'BOT Intermédiaire V2':'BOT Facile');
+      players.push({id:'BOT',name:botName,seat:'joiner',isBot:true});
+    }
+    rooms.set(room,{state,host:socket.id,players,botMode,botDifficulty,championshipBot:opponentType==='championship_bot'?championshipBot:null});
     state.playerNames={bottom:String(name||'J1'),top:botMode?players[1].name:'J2'};
     socket.join(room);
     socket.emit('roomCreated',{room,seat:'host',name,state,botMode,botDifficulty});
