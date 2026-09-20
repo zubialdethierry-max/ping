@@ -1,9 +1,9 @@
-/* Fond général du jeu uniquement.
-   Le fond spécifique de l'accueil est géré par #freshLanLobby dans index.html. */
+/* Fond du plateau en partie.
+   L'accueil possède son propre fond via #freshLanLobby dans index.html. */
 html, body {
-  background-image: url('/fond_ping_aquarelle.png') !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  background-size: cover !important;
-  background-attachment: fixed !important;
+  background-color: #0a1422 !important;
+  background-image: none !important;
 }
+
+/* Le plateau de jeu conserve son fond historique intégré à index.html.
+   Ne jamais imposer ici le fond de l'accueil. */
