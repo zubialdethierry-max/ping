@@ -181,3 +181,20 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true});
   else install();
 })();
+
+
+/* Correction graphe déplacement : 5 <-> 6 vaut 2 déplacements.
+   Le calcul historique embarqué dans index.html les comptait encore à 3. */
+(function pingFixDistanceFiveSix(){
+  const install=()=>{
+    if(typeof shortestDistance!=='function') return;
+    const baseShortestDistance=shortestDistance;
+    shortestDistance=function(from,to){
+      const a=Number(from), b=Number(to);
+      if((a===5 && b===6) || (a===6 && b===5)) return 2;
+      return baseShortestDistance(from,to);
+    };
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true});
+  else install();
+})();
