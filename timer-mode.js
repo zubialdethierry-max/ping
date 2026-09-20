@@ -141,3 +141,43 @@
  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',boot,{once:true});
  else boot();
 })();
+
+/* Séparation stricte des fonds accueil / partie.
+   Le index actuel impose encore le fond d'accueil sur body avec !important.
+   Cette couche finale bascule donc body vers le fond historique du jeu dès que
+   #freshLanLobby est masqué, quel que soit le mode (2J / bots). */
+(function pingSeparateHomeAndGameBackgrounds(){
+  const GAME_BG = 'url("/fond_ping_aquarelle.png")';
+
+  function syncBackground(){
+    const lobby = document.getElementById('freshLanLobby');
+    if(!lobby) return;
+    const inGame = lobby.classList.contains('hidden') || getComputedStyle(lobby).display === 'none';
+
+    if(inGame){
+      document.documentElement.style.setProperty('background-image', GAME_BG, 'important');
+      document.body.style.setProperty('background-image', GAME_BG, 'important');
+      document.body.style.setProperty('background-position', 'center center', 'important');
+      document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
+      document.body.style.setProperty('background-size', 'cover', 'important');
+      document.body.style.setProperty('background-attachment', 'fixed', 'important');
+    }else{
+      document.documentElement.style.removeProperty('background-image');
+      document.body.style.removeProperty('background-image');
+      document.body.style.removeProperty('background-position');
+      document.body.style.removeProperty('background-repeat');
+      document.body.style.removeProperty('background-size');
+      document.body.style.removeProperty('background-attachment');
+    }
+  }
+
+  function install(){
+    const lobby = document.getElementById('freshLanLobby');
+    if(!lobby) return;
+    new MutationObserver(syncBackground).observe(lobby,{attributes:true,attributeFilter:['class','style']});
+    syncBackground();
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',install,{once:true});
+  else install();
+})();
