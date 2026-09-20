@@ -50,6 +50,13 @@ window.addEventListener('load',()=>{
     sc.dataset.pingScoreTrackFix='1';
     document.head.appendChild(sc);
   }
+  /* Mise en évidence de la dernière tuile jouée, dans tous les modes. */
+  if(!document.querySelector('script[data-ping-last-tile-highlight]')){
+    const hl=document.createElement('script');
+    hl.src='/last-tile-highlight.js';
+    hl.dataset.pingLastTileHighlight='1';
+    document.head.appendChild(hl);
+  }
   init();
   if(!installModeTransport()){const t=setInterval(()=>{if(installModeTransport())clearInterval(t)},25);}
   const s=getSocket();
