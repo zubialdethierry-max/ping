@@ -200,20 +200,6 @@
 })();
 
 
-/* Graphe officiel des déplacements :
-   les positions 5 et 6 sont directement reliées (coût 1).
-   Cela donne notamment 6 -> 5 = 1 déplacement et évite le détour 6-4-3-5. */
-(function pingFixMoveGraph56(){
-  function apply(){
-    if(typeof MOVE_GRAPH === 'undefined') return;
-    if(!MOVE_GRAPH[5].some(v=>String(v)==='6')) MOVE_GRAPH[5].push(6);
-    if(!MOVE_GRAPH[6].some(v=>String(v)==='5')) MOVE_GRAPH[6].push(5);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply,{once:true});
-  else apply();
-})();
-
-
 /* Correctifs règles plateau validées :
    - distance 5 <-> 6 = exactement 2 déplacements ;
    - objectif 1 : 6 jaune, 4 libre, 2 vert (lecture de la carte). */
