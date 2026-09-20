@@ -6,7 +6,7 @@ const os=require('os');
 const app=express();
 const httpServer=http.createServer(app);
 const io=new Server(httpServer);
-app.use(express.static(__dirname));
+app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control','no-store');}}));
 
 /* Modules d'interface globaux : injection serveur pour ne pas dépendre d'un ancien loader client. */
 app.get('/',(req,res)=>{
