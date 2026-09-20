@@ -39,6 +39,10 @@ function sync(st){
   else if(document.body.classList.contains('fresh-game-ready'))document.getElementById('characterChoice')?.classList.add('open');
 }
 window.addEventListener('load',()=>{
+  /* Prototype visuel du mode Championnat. */
+  if(!document.querySelector('script[data-ping-championship]')){
+    const ch=document.createElement('script');ch.src='/championship-ui.js';ch.dataset.pingChampionship='1';document.head.appendChild(ch);
+  }
   /* Chronomètre commun, actif avec ou sans personnages. */
   if(!document.querySelector('script[data-ping-timer-mode]')){
     const tm=document.createElement('script');tm.src='/timer-mode.js';tm.dataset.pingTimerMode='1';document.head.appendChild(tm);
