@@ -10,7 +10,14 @@ app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control',
 
 /* Modules d'interface globaux : injection serveur pour ne pas dépendre d'un ancien loader client. */
 app.get('/',(req,res)=>{
-  res.sendFile(require('path').join(__dirname,'index.html'),{headers:{'Cache-Control':'no-store'}});
+  const fs=require('fs'),path=require('path');
+  fs.readFile(path.join(__dirname,'index.html'),'utf8',(err,html)=>{
+    if(err)return res.status(500).send('PING! — index indisponible');
+    const tag='<script src="/championship-ui.js?v=1"></script>';
+    if(!html.includes('/championship-ui.js'))html=html.replace(/<\/body>/i,tag+'</body>');
+    res.setHeader('Cache-Control','no-store');
+    res.type('html').send(html);
+  });
 });
 
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
