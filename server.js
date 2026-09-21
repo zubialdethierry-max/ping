@@ -21,7 +21,15 @@ app.get('/',(req,res)=>{
     res.type('html').send(html);
   });
 });
-app.use(express.static(__dirname,{setHeaders(res){res.setHeader('Cache-Control','no-store');}}));
+app.use(express.static(__dirname,{
+  setHeaders(res,filePath){
+    if(/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(filePath)){
+      res.setHeader('Cache-Control','public, max-age=86400');
+    }else{
+      res.setHeader('Cache-Control','no-cache');
+    }
+  }
+}));
 
 
 /* V0.34 INTERNET — endpoint pour Render / health checks. */
